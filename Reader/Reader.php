@@ -234,8 +234,9 @@ class Reader
     /**
      * @param $configuration array list of input mappings
      * @param $destination string destination folder
+     * @param string $downloadAs
      */
-    public function downloadTables($configuration, $destination)
+    public function downloadTables($configuration, $destination, $downloadAs = 'csv')
     {
         if (!$configuration) {
             return;
@@ -266,10 +267,37 @@ class Reader
             if (isset($table['limit'])) {
                 $exportOptions['limit'] = $table['limit'];
             }
-            $tableExporter->exportTable($table["source"], $file, $exportOptions);
             $tableInfo = $this->getClient()->getTable($table["source"]);
+            if ($downloadAs == "s3") {
+                $job = $this->getClient()->exportTableAsync($table["source"], $exportOptions);
+                $fileInfo = $this->getClient()->getFile(
+                    $job["file"]["id"],
+                    (new GetFileOptions())->setFederationToken(true)
+                );
+                $tableInfo["s3"] = $this->getS3Info($fileInfo);
+            } elseif ($downloadAs == "csv") {
+                $tableExporter->exportTable($table["source"], $file, $exportOptions);
+            } else {
+                throw new InvalidInputException("DownloadAs must be either 'csv' or 's3'.");
+            }
+
             $this->writeTableManifest($tableInfo, $file . ".manifest");
         }
+    }
+
+    protected function getS3Info($fileInfo)
+    {
+        return [
+            "isSliced" => $fileInfo["isSliced"],
+            "region" => $fileInfo["region"],
+            "bucket" => $fileInfo["s3Path"]["bucket"],
+            "key" => $fileInfo["isSliced"]?$fileInfo["s3Path"]["key"] . ".manifest":$fileInfo["s3Path"]["key"],
+            "credentials" => [
+                "access_key_id" => $fileInfo["credentials"]["AccessKeyId"],
+                "secret_access_key" => $fileInfo["credentials"]["SecretAccessKey"],
+                "session_token" => $fileInfo["credentials"]["SessionToken"]
+            ]
+        ];
     }
 
     /**
@@ -300,6 +328,9 @@ class Reader
                 "value" => $attribute["value"],
                 "protected" => $attribute["protected"]
             );
+        }
+        if (isset($tableInfo["s3"])) {
+            $manifest["s3"] = $tableInfo["s3"];
         }
 
         $adapter = new TableAdapter($this->getFormat());
