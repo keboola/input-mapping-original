@@ -2,9 +2,7 @@
 
 namespace Keboola\InputMapping\Reader\Options;
 
-use Keboola\InputMapping\Reader\Options\InputTableOptions;
-
-class InputTablesOptions
+class InputTableOptionsList
 {
     /**
      * @var InputTableOptions[]
