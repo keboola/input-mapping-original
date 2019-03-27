@@ -9,6 +9,7 @@ use Keboola\InputMapping\Exception\InputOperationException;
 use Keboola\InputMapping\Exception\InvalidInputException;
 use Keboola\InputMapping\Reader\Options\InputTableOptions;
 use Keboola\InputMapping\Reader\Options\InputTableOptionsList;
+use Keboola\InputMapping\Reader\State\InputTableStateList;
 use Keboola\StorageApi\Client;
 use Keboola\StorageApi\Metadata;
 use Keboola\StorageApi\Options\GetFileOptions;
@@ -245,24 +246,33 @@ class Reader
     }
 
     /**
-     * @param $tablesDefinition InputTableOptionsList list of input mappings
-     * @param $destination string destination folder
+     * @param InputTableOptionsList $tablesDefinition list of input mappings
+     * @param InputTableStateList $tablesState list of input mapping states
+     * @param $destination destination folder
      * @param string $storage
+     * @return InputTableStateList
+     * @throws \Keboola\StorageApi\ClientException
+     * @throws \Keboola\StorageApi\Exception
      */
-    public function downloadTables(InputTableOptionsList $tablesDefinition, $destination, $storage = 'local')
+    public function downloadTables(InputTableOptionsList $tablesDefinition, InputTableStateList $tablesState, $destination, $storage = 'local')
     {
         $tableExporter = new TableExporter($this->getClient());
         $localExports = [];
         $s3exports = [];
+        $outputStateConfiguration = [];
         foreach ($tablesDefinition->getTables() as $table) {
-            $exportOptions = $table->getStorageApiExportOptions();
+            $tableInfo = $this->client->getTable($table->getSource());
+            $outputStateConfiguration[] = [
+                'source' => $table->getSource(),
+                'lastImportDate' => $tableInfo['lastImportDate']
+            ];
+            $exportOptions = $table->getStorageApiExportOptions($tablesState);
             if ($storage == "s3") {
                 $exportOptions['gzip'] = true;
                 $jobId = $this->getClient()->queueTableExport($table->getSource(), $exportOptions);
                 $s3exports[$jobId] = $table;
             } elseif ($storage == "local") {
                 $file = $this->getDestinationFilePath($destination, $table);
-                $tableInfo = $this->getClient()->getTable($table->getSource());
                 $localExports[] = [
                     "tableId" => $table->getSource(),
                     "destination" => $file,
@@ -274,6 +284,8 @@ class Reader
             }
             $this->logger->info("Fetched table " . $table->getSource() . ".");
         }
+
+        $outputState = new InputTableStateList($outputStateConfiguration);
 
         if ($s3exports) {
             $this->logger->info("Processing " . count($s3exports) . " table exports.");
@@ -301,6 +313,7 @@ class Reader
         }
 
         $this->logger->info("All tables were fetched.");
+        return $outputState;
     }
 
     /**
