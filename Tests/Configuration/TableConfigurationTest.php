@@ -144,4 +144,13 @@ class TableConfigurationTest extends \PHPUnit_Framework_TestCase
     {
         (new Table())->parse(["config" => []]);
     }
+
+    /**
+     * @expectedException \Symfony\Component\Config\Definition\Exception\InvalidConfigurationException
+     * @expectedExceptionMessage The path "table.source" cannot contain an empty value, but got "".
+     */
+    public function testEmptySourceConfiguration()
+    {
+        (new Table())->parse(["config" => ["source" => ""]]);
+    }
 }
