@@ -22,6 +22,18 @@ class InputTableOptionsTest extends \PHPUnit_Framework_TestCase
         self::assertEquals('dest', $definition->getDestination());
     }
 
+    public function testGetDefinition()
+    {
+        $definition = new InputTableOptions(['source' => 'test', 'destination' => 'dest']);
+        self::assertEquals([
+            'source' => 'test',
+            'destination' => 'dest',
+            'columns' => [],
+            'where_values' => [],
+            'where_operator' => 'eq',
+        ], $definition->getDefinition());
+    }
+
     public function testGetColumns()
     {
         $definition = new InputTableOptions(['source' => 'test', 'columns' => ['col1', 'col2']]);
@@ -31,7 +43,7 @@ class InputTableOptionsTest extends \PHPUnit_Framework_TestCase
     public function testConstructorMissingSource()
     {
         self::expectException(InvalidConfigurationException::class);
-        self::expectExceptionMessage('The child node "source" at path "table" must be configured.');
+        self::expectExceptionMessage('Either "source" or "source_search" must be configured.');
         new InputTableOptions([]);
     }
 

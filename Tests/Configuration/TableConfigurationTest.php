@@ -22,7 +22,7 @@ class TableConfigurationTest extends \PHPUnit_Framework_TestCase
                     "where_column" => "status",
                     "where_values" => ["val1", "val2"],
                     "where_operator" => "ne",
-                ]
+                ],
             ],
             'DaysNullConfiguration' => [
                 [
@@ -33,7 +33,7 @@ class TableConfigurationTest extends \PHPUnit_Framework_TestCase
                     "where_column" => "status",
                     "where_values" => ["val1", "val2"],
                     "where_operator" => "ne",
-                ]
+                ],
             ],
             'DaysConfiguration' => [
                 [
@@ -44,7 +44,7 @@ class TableConfigurationTest extends \PHPUnit_Framework_TestCase
                     "where_column" => "status",
                     "where_values" => ["val1", "val2"],
                     "where_operator" => "ne",
-                ]
+                ],
             ],
             'ChangedSinceNullConfiguration' => [
                 [
@@ -55,7 +55,7 @@ class TableConfigurationTest extends \PHPUnit_Framework_TestCase
                     "where_column" => "status",
                     "where_values" => ["val1", "val2"],
                     "where_operator" => "ne",
-                ]
+                ],
             ],
             'ChangedSinceConfiguration' => [
                 [
@@ -66,7 +66,21 @@ class TableConfigurationTest extends \PHPUnit_Framework_TestCase
                     "where_column" => "status",
                     "where_values" => ["val1", "val2"],
                     "where_operator" => "ne",
-                ]
+                ],
+            ],
+            'SearchSourceConfiguration' => [
+                [
+                    "source_search" => [
+                        "key" => "bdm.scaffold.tag",
+                        "value" => "test_table",
+                    ],
+                    "destination" => "test",
+                    "changed_since" => "-1 days",
+                    "columns" => ["Id", "Name"],
+                    "where_column" => "status",
+                    "where_values" => ["val1", "val2"],
+                    "where_operator" => "ne",
+                ],
             ],
         ];
     }
@@ -85,6 +99,7 @@ class TableConfigurationTest extends \PHPUnit_Framework_TestCase
                     "where_operator" => "eq",
                 ],
             ],
+
         ];
     }
 
@@ -126,18 +141,41 @@ class TableConfigurationTest extends \PHPUnit_Framework_TestCase
             'testEmptyConfiguration' => [
                 [],
                 InvalidConfigurationException::class,
-                'The child node "source" at path "table" must be configured.',
+                'Either "source" or "source_search" must be configured.',
             ],
             'EmptySourceConfiguration' => [
                 ["source" => ""],
                 InvalidConfigurationException::class,
                 'The path "table.source" cannot contain an empty value, but got "".',
             ],
+            'InvalidSearchSourceEmptyKey' => [
+                [
+                    "source_search" => [
+                        "key" => "",
+                        "value" => "test_table",
+                    ],
+                ],
+                InvalidConfigurationException::class,
+                'The path "table.source_search.key" cannot contain an empty value, but got "".',
+            ],
+            'InvalidSearchSourceEmptyValue' => [
+                [
+                    "source_search" => [
+                        "key" => "bdm.scaffold.tag",
+                        "value" => "",
+                    ],
+                ],
+                InvalidConfigurationException::class,
+                'The path "table.source_search.value" cannot contain an empty value, but got "".',
+            ],
         ];
     }
 
     /**
      * @dataProvider provideInvalidConfigs
+     * @param array $config
+     * @param string $exception
+     * @param string $exceptionMessage
      */
     public function testInvalidConfigDefinition(
         array $config,
