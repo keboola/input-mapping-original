@@ -9,6 +9,7 @@ use Keboola\InputMapping\Exception\InvalidInputException;
 use Keboola\InputMapping\Reader\Reader;
 use Keboola\StorageApi\Client;
 use Keboola\StorageApi\Options\FileUploadOptions;
+use Keboola\StorageApi\Options\GetFileOptions;
 use Keboola\StorageApi\Options\ListFilesOptions;
 use Keboola\Temp\Temp;
 use Psr\Log\NullLogger;
@@ -179,13 +180,17 @@ class DownloadFilesTest extends \PHPUnit_Framework_TestCase
 
         $dlDir = $this->tmpDir . "/download";
         $reader->downloadFiles($configuration, $dlDir);
-
         $fileName = $fileId . "_in.c-docker-test-redshift.test_file.csv";
-        self::assertEquals(
-            '"test","test"' . "\n",
-            file_get_contents($dlDir . "/" . $fileName . "/part.0")
-            . file_get_contents($dlDir . "/" . $fileName . "/part.1")
-        );
+
+        $resultFileContent = '';
+        $finder = new Finder();
+
+        /** @var \SplFileInfo $file */
+        foreach ($finder->files()->in($dlDir . '/' . $fileName) as $file) {
+            $resultFileContent .= file_get_contents($file->getPathname());
+        }
+
+        self::assertEquals('"test","test"' . "\n", $resultFileContent);
 
         $manifestFile = $dlDir . "/" . $fileName . ".manifest";
         self::assertFileExists($manifestFile);
