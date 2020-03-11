@@ -2,7 +2,6 @@
 
 namespace Keboola\InputMapping\Reader;
 
-use Aws\S3\S3Client;
 use Keboola\InputMapping\Configuration\File\Manifest\Adapter as FileAdapter;
 use Keboola\InputMapping\Configuration\Table\Manifest\Adapter as TableAdapter;
 use Keboola\InputMapping\Exception\InputOperationException;
@@ -15,11 +14,9 @@ use Keboola\StorageApi\Metadata;
 use Keboola\StorageApi\Options\GetFileOptions;
 use Keboola\StorageApi\Options\ListFilesOptions;
 use Keboola\StorageApi\TableExporter;
-use Keboola\StorageApi\HandlerStack;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Filesystem\Filesystem;
-use GuzzleHttp\Client as HttpClient;
 
 class Reader
 {
@@ -100,36 +97,29 @@ class Reader
         } elseif (!is_array($configuration)) {
             throw new InvalidInputException("File download configuration is not an array.");
         }
+        $storageClient = $this->getClient();
+        $fileOptions = new GetFileOptions();
+        $fileOptions->setFederationToken(true);
+
         foreach ($configuration as $fileConfiguration) {
             $files = $this->getFiles($fileConfiguration);
             foreach ($files as $file) {
-                $fileInfo = $this->getClient()->getFile($file["id"], (new GetFileOptions())->setFederationToken(true));
-                $this->logger->info("Fetching file " . $fileInfo['name'] . " (" . $file["id"] . ").");
+                $fileInfo = $storageClient->getFile($file['id'], $fileOptions);
+                $fileDestinationPath = sprintf('%s/%s_%s', $destination, $fileInfo['id'], $fileInfo["name"]);
+                $this->logger->info(sprintf('Fetching file %s (%s).', $fileInfo['name'], $file['id']));
                 try {
-                    if ($fileInfo['isSliced']) {
-                        $this->downloadSlicedFile($fileInfo, $destination);
-                        $this->writeFileManifest(
-                            $fileInfo,
-                            $destination . "/" . $fileInfo["id"] . '_' . $fileInfo["name"] . ".manifest"
-                        );
-                    } else {
-                        $this->downloadFile($fileInfo, $destination . "/" . $fileInfo["id"] . '_' . $fileInfo["name"]);
-                        $this->writeFileManifest(
-                            $fileInfo,
-                            $destination . "/" . $fileInfo["id"] . '_' . $fileInfo["name"] . ".manifest"
-                        );
-                    }
+                    $this->downloadFile($fileInfo, $fileDestinationPath);
                 } catch (\Exception $e) {
                     throw new InputOperationException(
-                        "Failed to download file " . $fileInfo['name'] . ' ' . $fileInfo['id'],
+                        sprintf('Failed to download file %s (%s).', $fileInfo['name'], $file['id']),
                         0,
                         $e
                     );
                 }
-                $this->logger->info("Fetched file " . $fileInfo['name'] . " (" . $file["id"] . ").");
+                $this->logger->info(sprintf('Fetched file %s (%s).', $fileInfo['name'], $file['id']));
             }
         }
-        $this->logger->info("All files were fetched.");
+        $this->logger->info('All files were fetched.');
     }
 
     /**
@@ -194,58 +184,18 @@ class Reader
 
     /**
      * @param array $fileInfo array file info from Storage API
-     * @param string $destination string Destination file path
+     * @param string $fileDestinationPath string Destination file path
+     * @throws \Exception
      */
-    protected function downloadFile($fileInfo, $destination)
+    protected function downloadFile($fileInfo, $fileDestinationPath)
     {
-        // Initialize S3Client with credentials from Storage API
-        $s3Client = new S3Client(
-            [
-                "credentials" => [
-                    "key" => $fileInfo["credentials"]["AccessKeyId"],
-                    "secret" => $fileInfo["credentials"]["SecretAccessKey"],
-                    "token" => $fileInfo["credentials"]["SessionToken"]
-                ],
-                "region" => $fileInfo['region'],
-                'version' => 'latest',
-
-            ]
-        );
-
-        // NonSliced file, just move from temp to destination file
-        $s3Client->getObject(
-            [
-                'Bucket' => $fileInfo["s3Path"]["bucket"],
-                'Key' => $fileInfo["s3Path"]["key"],
-                'SaveAs' => $destination
-            ]
-        );
-    }
-
-    protected function downloadSlicedFile($fileInfo, $destination)
-    {
-        $destination = $destination . "/" . $fileInfo["id"] . '_' . $fileInfo["name"];
-        $fs = new Filesystem();
-        $fs->mkdir($destination);
-        // Download manifest with all sliced files
-        $client = new HttpClient(
-            [
-                'handler' => HandlerStack::create(
-                    [
-                        'backoffMaxTries' => 10,
-                    ]
-                ),
-            ]
-        );
-        $manifest = json_decode($client->get($fileInfo['url'])->getBody());
-        $part = 0;
-        foreach ($manifest->entries as $slice) {
-            $sliceInfo = $fileInfo;
-            $sliceDestination = $destination . "/part." . $part++;
-
-            $sliceInfo["s3Path"]["key"] = str_replace("s3://" . $fileInfo["s3Path"]["bucket"] . "/", "", $slice->url);
-            $this->downloadFile($sliceInfo, $sliceDestination);
+        if ($fileInfo['isSliced']) {
+            $this->getClient()->downloadSlicedFile($fileInfo['id'], $fileDestinationPath);
+        } else {
+            $this->getClient()->downloadFile($fileInfo['id'], $fileDestinationPath);
         }
+
+        $this->writeFileManifest($fileInfo, $fileDestinationPath . ".manifest");
     }
 
     /**
