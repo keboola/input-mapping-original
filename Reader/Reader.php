@@ -14,6 +14,7 @@ use Keboola\StorageApi\Metadata;
 use Keboola\StorageApi\Options\GetFileOptions;
 use Keboola\StorageApi\Options\ListFilesOptions;
 use Keboola\StorageApi\TableExporter;
+use Keboola\StorageApi\Workspaces;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Filesystem\Filesystem;
@@ -22,6 +23,10 @@ class Reader
 {
     const DEFAULT_MAX_EXPORT_SIZE_BYTES = 100000000000;
     const EXPORT_SIZE_LIMIT_NAME = 'components.max_export_size_bytes';
+    const STAGING_S3 = 's3';
+    const STAGING_LOCAL = 'local';
+    const STAGING_SNOWFLAKE = 'workspace-snowflake';
+    const STAGING_REDSHIFT = 'workspace-redshift';
 
     /**
      * @var Client
@@ -35,6 +40,11 @@ class Reader
      * @var LoggerInterface
      */
     private $logger;
+
+    /**
+     * @var WorkspaceProviderInterface
+     */
+    private $workspaceProvider;
 
     /**
      * @return mixed
@@ -78,10 +88,11 @@ class Reader
      * @param Client $client
      * @param LoggerInterface $logger
      */
-    public function __construct(Client $client, LoggerInterface $logger)
+    public function __construct(Client $client, LoggerInterface $logger, WorkspaceProviderInterface $workspaceProvider)
     {
         $this->logger = $logger;
         $this->setClient($client);
+        $this->workspaceProvider = $workspaceProvider;
     }
 
     /**
@@ -194,7 +205,6 @@ class Reader
         } else {
             $this->getClient()->downloadFile($fileInfo['id'], $fileDestinationPath);
         }
-
         $this->writeFileManifest($fileInfo, $fileDestinationPath . ".manifest");
     }
 
@@ -218,6 +228,8 @@ class Reader
         $tableResolver = new TableDefinitionResolver($this->client, $this->logger);
         $tablesDefinition = $tableResolver->resolve($tablesDefinition);
         $localExports = [];
+        $workspaceClones = [];
+        $workspaceCopies = [];
         $s3exports = [];
         $outputStateConfiguration = [];
         foreach ($tablesDefinition->getTables() as $table) {
@@ -226,18 +238,18 @@ class Reader
                 'source' => $table->getSource(),
                 'lastImportDate' => $tableInfo['lastImportDate']
             ];
-            $exportOptions = $table->getStorageApiExportOptions($tablesState);
-            if ($storage == "s3") {
+            if ($storage == self::STAGING_S3) {
+                $exportOptions = $table->getStorageApiExportOptions($tablesState);
                 $exportOptions['gzip'] = true;
                 $jobId = $this->getClient()->queueTableExport($table->getSource(), $exportOptions);
                 $s3exports[$jobId] = $table;
-            } elseif ($storage == "local") {
+            } elseif ($storage == self::STAGING_LOCAL) {
                 $file = $this->getDestinationFilePath($destination, $table);
                 $tableInfo = $this->client->getTable($table->getSource());
                 if ($tableInfo['dataSizeBytes'] > $exportLimit) {
                     throw new InvalidInputException(sprintf(
                         'Table "%s" with size %s bytes exceeds the input mapping limit of %s bytes. ' .
-                            'Please contact support to raise this limit',
+                        'Please contact support to raise this limit',
                         $table->getSource(),
                         $tableInfo['dataSizeBytes'],
                         $exportLimit
@@ -246,11 +258,35 @@ class Reader
                 $localExports[] = [
                     "tableId" => $table->getSource(),
                     "destination" => $file,
-                    "exportOptions" => $exportOptions
+                    "exportOptions" => $table->getStorageApiExportOptions($tablesState),
                 ];
                 $this->writeTableManifest($tableInfo, $file . ".manifest", $table->getColumns());
+            } elseif ($storage === self::STAGING_SNOWFLAKE) {
+                $loadOptions = $table->getStorageApiLoadOptions($tablesState);
+                if (LoadTypeDecider::canClone($tableInfo, 'snowflake', $loadOptions)) {
+                    $this->logger->info(sprintf('Table "%s" will be cloned.', $table->getSource()));
+                    $workspaceClones[WorkspaceProviderInterface::TYPE_SNOWFLAKE][] = $table;
+                } else {
+                    $this->logger->info(sprintf('Table "%s" will be copied.', $table->getSource()));
+                    $workspaceCopies[WorkspaceProviderInterface::TYPE_SNOWFLAKE][] = [$table, $loadOptions];
+                }
+            } elseif ($storage === self::STAGING_REDSHIFT) {
+                $loadOptions = $table->getStorageApiLoadOptions($tablesState);
+                if (LoadTypeDecider::canClone($tableInfo, 'redshift', $loadOptions)) {
+                    $this->logger->info(sprintf('Table "%s" will be cloned.', $table->getSource()));
+                    $workspaceClones[WorkspaceProviderInterface::TYPE_REDSHIFT][] = $table;
+                } else {
+                    $this->logger->info(sprintf('Table "%s" will be copied.', $table->getSource()));
+                    $workspaceCopies[WorkspaceProviderInterface::TYPE_REDSHIFT][] = [$table, $loadOptions];
+                }
             } else {
-                throw new InvalidInputException("Parameter 'storage' must be either 'local' or 's3'.");
+                throw new InvalidInputException(
+                    'Parameter "storage" must be one of: ' .
+                    implode(
+                        ', ',
+                        [self::STAGING_LOCAL, self::STAGING_S3, self::STAGING_SNOWFLAKE, self::STAGING_REDSHIFT]
+                    )
+                );
             }
             $this->logger->info("Fetched table " . $table->getSource() . ".");
         }
@@ -273,6 +309,69 @@ class Reader
                 )
                 ;
                 $tableInfo["s3"] = $this->getS3Info($fileInfo);
+                $this->writeTableManifest($tableInfo, $manifestPath, $table->getColumns());
+            }
+        }
+        $workspaceJobs = [];
+        $workspaceTables = [];
+        if ($workspaceClones) {
+            foreach ($workspaceClones as $storage => $tables) {
+                $this->logger->info(
+                    sprintf('Cloning %s tables to %s workspace.', count($tables), $storage)
+                );
+                $inputs = [];
+                foreach ($tables as $table) {
+                    $inputs[] = [
+                        'source' => $table->getSource(),
+                        'destination' => $table->getDestination()
+                    ];
+                    $workspaceTables[] = $table;
+                }
+                $job = $this->client->apiPost(
+                    'storage/workspaces/' . $this->workspaceProvider->getWorkspaceId($storage) . '/load-clone',
+                    [
+                        'input' => $inputs,
+                        'preserve' => 1,
+                    ],
+                    false
+                );
+                $workspaceJobs[] = $job['id'];
+            }
+        }
+        if ($workspaceCopies) {
+            foreach ($workspaceCopies as $storage => $tables) {
+                $this->logger->info(
+                    sprintf('Copying %s tables to %s workspace.', count($tables), $storage)
+                );
+                $inputs = [];
+                foreach ($tables as $tableArray) {
+                    list ($table, $exportOptions) = $tableArray;
+                    $inputs[] = array_merge(
+                        [
+                            'source' => $table->getSource(),
+                            'destination' => $table->getDestination(),
+                        ],
+                        $exportOptions
+                    );
+                    $workspaceTables[] = $table;
+                }
+                $job = $this->client->apiPost(
+                    'storage/workspaces/' . $this->workspaceProvider->getWorkspaceId($storage) . '/load',
+                    [
+                        'input' => $inputs,
+                        'preserve' => 1,
+                    ],
+                    false
+                );
+                $workspaceJobs[] = $job['id'];
+            }
+        }
+        if ($workspaceJobs) {
+            $this->logger->info('Processing ' . count($workspaceJobs) . ' workspace exports.');
+            $this->client->handleAsyncTasks($workspaceJobs);
+            foreach ($workspaceTables as $table) {
+                $manifestPath = $this->getDestinationFilePath($destination, $table) . ".manifest";
+                $tableInfo = $this->getClient()->getTable($table->getSource());
                 $this->writeTableManifest($tableInfo, $manifestPath, $table->getColumns());
             }
         }
@@ -306,7 +405,7 @@ class Reader
             "isSliced" => $fileInfo["isSliced"],
             "region" => $fileInfo["region"],
             "bucket" => $fileInfo["s3Path"]["bucket"],
-            "key" => $fileInfo["isSliced"]?$fileInfo["s3Path"]["key"] . "manifest":$fileInfo["s3Path"]["key"],
+            "key" => $fileInfo["isSliced"] ? $fileInfo["s3Path"]["key"] . "manifest" : $fileInfo["s3Path"]["key"],
             "credentials" => [
                 "access_key_id" => $fileInfo["credentials"]["AccessKeyId"],
                 "secret_access_key" => $fileInfo["credentials"]["SecretAccessKey"],
