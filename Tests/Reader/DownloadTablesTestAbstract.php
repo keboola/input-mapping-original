@@ -45,6 +45,21 @@ class DownloadTablesTestAbstract extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * @param array $manifest
+     */
+    protected function assertABSinfo(array $manifest)
+    {
+        self::assertArrayHasKey("abs", $manifest);
+        self::assertArrayHasKey("is_sliced", $manifest["abs"]);
+        self::assertArrayHasKey("region", $manifest["abs"]);
+        self::assertArrayHasKey("container", $manifest["abs"]);
+        self::assertArrayHasKey("name", $manifest["abs"]);
+        self::assertArrayHasKey("credentials", $manifest["abs"]);
+        self::assertArrayHasKey("sas_connection_string", $manifest["abs"]['credentials']);
+        self::assertArrayHasKey("expiration", $manifest["abs"]['credentials']);
+    }
+
+    /**
      * @param $expectedString
      * @param $path
      */
