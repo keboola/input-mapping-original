@@ -2,6 +2,7 @@
 
 namespace Keboola\InputMapping\Reader\Strategy;
 
+use Keboola\InputMapping\Exception\InvalidInputException;
 use Keboola\InputMapping\Reader\Options\InputTableOptions;
 use Keboola\StorageApi\Options\GetFileOptions;
 
@@ -39,12 +40,15 @@ class ABSStrategy extends AbstractStrategy
             )
             ;
             $tableInfo["abs"] = $this->getABSInfo($fileInfo);
-            $this->manifestWriter->writeTableManifest($tableInfo, $manifestPath, $table->getColumns());
+            $this->manifestWriter->writeTableManifest($tableInfo, $manifestPath, $table->getColumnNames());
         }
     }
 
     protected function getABSInfo($fileInfo)
     {
+        if (empty($fileInfo['absPath'])) {
+            throw new InvalidInputException('This project does not have ABS backend.');
+        }
         return [
             "is_sliced" => $fileInfo["isSliced"],
             "region" => $fileInfo["region"],
