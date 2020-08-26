@@ -29,21 +29,21 @@ class DownloadFilesTestAbstract extends \PHPUnit_Framework_TestCase
         $fs = new Filesystem();
         $fs->mkdir($this->tmpDir . "/download");
         $this->client = new Client(["token" => STORAGE_API_TOKEN, "url" => STORAGE_API_URL]);
-    }
-
-    public function tearDown()
-    {
-        // Delete local files
-        $finder = new Finder();
-        $fs = new Filesystem();
-        $fs->remove($finder->files()->in($this->tmpDir . "/download"));
-        $fs->remove($finder->files()->in($this->tmpDir));
-        $fs->remove($this->tmpDir . "/download");
-        $fs->remove($this->tmpDir);
+        $tokenInfo = $this->client->verifyToken();
+        print(sprintf(
+            'Authorized as "%s (%s)" to project "%s (%s)" at "%s" stack.',
+            $tokenInfo['description'],
+            $tokenInfo['id'],
+            $tokenInfo['owner']['name'],
+            $tokenInfo['owner']['id'],
+            $this->client->getApiUrl()
+        ));
 
         // Delete file uploads
+        sleep(5);
         $options = new ListFilesOptions();
-        $options->setTags(["docker-bundle-test"]);
+        $options->setTags(["download-files-test"]);
+        $options->setLimit(1000);
         $files = $this->client->listFiles($options);
         foreach ($files as $file) {
             $this->client->deleteFile($file["id"]);
