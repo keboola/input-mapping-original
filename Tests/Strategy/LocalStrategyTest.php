@@ -73,8 +73,9 @@ class LocalStrategyTest extends PHPUnit_Framework_TestCase
                 'tableId' => 'in.c-input-mapping-test-strategy.test1',
                 'destination' => './some-table.csv',
                 'exportOptions' => [
-                    'columns' => ['Id', 'Name']
-                ]
+                    'columns' => ['Id', 'Name'],
+                    'overwrite' => false,
+                ],
             ],
             $result
         );
@@ -113,8 +114,9 @@ class LocalStrategyTest extends PHPUnit_Framework_TestCase
                 'tableId' => 'in.c-input-mapping-test-strategy.test1',
                 'destination' => './some-table.csv',
                 'exportOptions' => [
-                    'columns' => ['Id', 'Name']
-                ]
+                    'columns' => ['Id', 'Name'],
+                    'overwrite' => false,
+                ],
             ],
             $result
         );
