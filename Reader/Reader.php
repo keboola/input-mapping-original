@@ -4,6 +4,7 @@ namespace Keboola\InputMapping\Reader;
 
 use Keboola\InputMapping\Exception\InputOperationException;
 use Keboola\InputMapping\Exception\InvalidInputException;
+use Keboola\InputMapping\Reader\Helper\SourceRewriteHelper;
 use Keboola\InputMapping\Reader\Options\InputTableOptionsList;
 use Keboola\InputMapping\Reader\State\InputTableStateList;
 use Keboola\InputMapping\Reader\Strategy\StrategyFactory;
@@ -44,6 +45,7 @@ class Reader
     /**
      * @param ClientWrapper $clientWrapper
      * @param LoggerInterface $logger
+     * @param WorkspaceProviderInterface $workspaceProvider
      */
     public function __construct(
         ClientWrapper $clientWrapper,
@@ -179,8 +181,13 @@ class Reader
         $storage = 'local'
     ) {
         $tableResolver = new TableDefinitionResolver($this->clientWrapper->getBasicClient(), $this->logger);
+        $tablesState = SourceRewriteHelper::rewriteTableStatesDestinations(
+            $tablesState,
+            $this->clientWrapper,
+            $this->logger
+        );
         $strategyFactory = new StrategyFactory(
-            $this->clientWrapper->getBasicClient(),
+            $this->clientWrapper,
             $this->logger,
             $this->workspaceProvider,
             $tablesState,
@@ -189,7 +196,11 @@ class Reader
 
         $tablesDefinition = $tableResolver->resolve($tablesDefinition);
         $strategy = $strategyFactory->getStrategy($storage);
-
+        $tablesDefinition = SourceRewriteHelper::rewriteTableOptionsDestinations(
+            $tablesDefinition,
+            $this->clientWrapper,
+            $this->logger
+        );
         return $strategy->downloadTables($tablesDefinition->getTables());
     }
 
