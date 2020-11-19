@@ -2,16 +2,17 @@
 
 namespace Keboola\InputMapping\Reader\Strategy;
 
+use Keboola\InputMapping\Reader\LoadTypeDecider;
 use Keboola\InputMapping\Reader\Options\InputTableOptions;
 use Keboola\InputMapping\Reader\WorkspaceProviderInterface;
 
-class SynapseStrategy extends AbstractStrategy
+class ABSWorkspaceStrategy extends AbstractStrategy
 {
-
-    protected $workspaceProviderId = WorkspaceProviderInterface::TYPE_SYNAPSE;
+    protected $workspaceProviderId = WorkspaceProviderInterface::TYPE_ABS;
 
     public function downloadTable(InputTableOptions $table)
     {
+        $tableInfo = $this->storageClient->getTable($table->getSource());
         $loadOptions = $table->getStorageApiLoadOptions($this->tablesState);
         $this->logger->info(sprintf('Table "%s" will be copied.', $table->getSource()));
         return [
@@ -22,8 +23,9 @@ class SynapseStrategy extends AbstractStrategy
 
     public function handleExports($exports)
     {
+        $copyInputs = [];
+
         foreach ($exports as $export) {
-            /** @var InputTableOptions $table */
             list ($table, $exportOptions) = $export['table'];
             $copyInputs[] = array_merge(
                 [
@@ -34,7 +36,6 @@ class SynapseStrategy extends AbstractStrategy
             );
             $workspaceTables[] = $table;
         }
-        $workspaceJobs = [];
         $this->logger->info(
             sprintf('Copying %s tables to %s workspace.', count($copyInputs), $this->workspaceProviderId)
         );
@@ -46,11 +47,11 @@ class SynapseStrategy extends AbstractStrategy
             ],
             false
         );
-        $workspaceJobs[] = $job['id'];
+        $workspaceJobId = $job['id'];
 
-        if ($workspaceJobs) {
-            $this->logger->info('Processing ' . count($workspaceJobs) . ' workspace exports.');
-            $this->storageClient->handleAsyncTasks($workspaceJobs);
+        if ($workspaceJobId) {
+            $this->logger->info('Processing workspace export.');
+            $this->storageClient->handleAsyncTasks([$workspaceJobId]);
             foreach ($workspaceTables as $table) {
                 $manifestPath = $this->getDestinationFilePath($this->destination, $table) . ".manifest";
                 $tableInfo = $this->storageClient->getTable($table->getSource());

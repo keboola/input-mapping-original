@@ -6,12 +6,12 @@ use Keboola\InputMapping\Configuration\Table\Manifest\Adapter;
 use Keboola\InputMapping\Reader\Options\InputTableOptionsList;
 use Keboola\InputMapping\Reader\Reader;
 use Keboola\InputMapping\Reader\State\InputTableStateList;
-use Keboola\StorageApiBranch\ClientWrapper;
 use Keboola\StorageApi\Client;
 use Keboola\StorageApi\Exception;
+use Keboola\StorageApiBranch\ClientWrapper;
 use Psr\Log\Test\TestLogger;
 
-class DownloadTablesWorkspaceSynapseTest extends DownloadTablesWorkspaceTestAbstract
+class DownloadTablesWorkspaceAbsTest extends DownloadTablesWorkspaceTestAbstract
 {
     private $runSynapseTests;
 
@@ -50,7 +50,7 @@ class DownloadTablesWorkspaceSynapseTest extends DownloadTablesWorkspaceTestAbst
         ));
     }
 
-    public function testTablesSynapseBackend()
+    public function testTablesAbsWorkspace()
     {
         if (!$this->runSynapseTests) {
             self::markTestSkipped('Synapse tests disabled');
@@ -61,22 +61,17 @@ class DownloadTablesWorkspaceSynapseTest extends DownloadTablesWorkspaceTestAbst
             [
                 'source' => 'in.c-input-mapping-test.test1',
                 'destination' => 'test1',
-                'changed_since' => '-2 days',
-                'columns' => ['Id'],
             ],
             [
                 'source' => 'in.c-input-mapping-test.test2',
                 'destination' => 'test2',
-                'column_types' => [
-                    [
-                        'source' => 'Id',
-                        'type' => 'VARCHAR',
-                    ],
-                    [
-                        'source' => 'Name',
-                        'type' => 'VARCHAR',
-                    ],
-                ],
+                'where_column' => 'Id',
+                'where_values' => ['id2', 'id3'],
+                'columns' => ['Id'],
+            ],
+            [
+                'source' => 'in.c-input-mapping-test.test3',
+                'destination' => 'test3',
             ],
         ]);
 
@@ -84,40 +79,55 @@ class DownloadTablesWorkspaceSynapseTest extends DownloadTablesWorkspaceTestAbst
             $configuration,
             new InputTableStateList([]),
             $this->temp->getTmpFolder() . DIRECTORY_SEPARATOR . 'download',
-            'workspace-synapse'
+            'workspace-abs'
         );
 
         $adapter = new Adapter();
-
         $manifest = $adapter->readFromFile($this->temp->getTmpFolder() . '/download/test1.manifest');
-        $this->clientWrapper->getBasicClient()->dropBucket('out.c-input-mapping-test');
-        $this->clientWrapper->getBasicClient()->createBucket(
-            'input-mapping-test',
-            Client::STAGE_OUT,
-            'Docker Testsuite',
-            'synapse'
-        );
-
         self::assertEquals('in.c-input-mapping-test.test1', $manifest['id']);
-        // test that the table exists in the workspace
+
         $tableId = $this->clientWrapper->getBasicClient()->createTableAsyncDirect(
             'out.c-input-mapping-test',
-            ['dataWorkspaceId' => $this->workspaceId, 'dataTableName' => 'test1', 'name' => 'test1']
+            [
+                'dataWorkspaceId' => $this->workspaceId,
+                'dataTableName' => 'test1',
+                'name' => 'test1',
+                'columns' => ['Id', 'Name', 'foo', 'bar']
+            ]
         );
-        self::assertEquals('out.c-input-mapping-test.test1', $tableId);
-        $table = $this->clientWrapper->getBasicClient()->getTable($tableId);
-        self::assertEquals(['Id'], $table['columns']);
+        self::assertNotEmpty($tableId);
 
+        // this is copy, so it doesn't contain the _timestamp column
         $manifest = $adapter->readFromFile($this->temp->getTmpFolder() . '/download/test2.manifest');
         self::assertEquals('in.c-input-mapping-test.test2', $manifest['id']);
         $tableId = $this->clientWrapper->getBasicClient()->createTableAsyncDirect(
             'out.c-input-mapping-test',
-            ['dataWorkspaceId' => $this->workspaceId, 'dataTableName' => 'test2', 'name' => 'test2']
+            [
+                'dataWorkspaceId' => $this->workspaceId,
+                'dataTableName' => 'test2',
+                'name' => 'test2',
+                'columns' => ['Id'],
+            ]
         );
-        self::assertEquals('out.c-input-mapping-test.test2', $tableId);
+        self::assertNotEmpty($tableId);
 
+        $manifest = $adapter->readFromFile($this->temp->getTmpFolder() . '/download/test3.manifest');
+        self::assertEquals('in.c-input-mapping-test.test3', $manifest['id']);
+
+        $tableId = $this->clientWrapper->getBasicClient()->createTableAsyncDirect(
+            'out.c-input-mapping-test',
+            [
+                'dataWorkspaceId' => $this->workspaceId,
+                'dataTableName' => 'test3',
+                'name' => 'test3',
+                'columns' => ['Id', 'Name', 'foo', 'bar'],
+            ]
+        );
+        self::assertNotEmpty($tableId);
         self::assertTrue($logger->hasInfoThatContains('Table "in.c-input-mapping-test.test1" will be copied.'));
         self::assertTrue($logger->hasInfoThatContains('Table "in.c-input-mapping-test.test2" will be copied.'));
-        self::assertTrue($logger->hasInfoThatContains('Processing 1 workspace exports.'));
+        self::assertTrue($logger->hasInfoThatContains('Table "in.c-input-mapping-test.test3" will be copied.'));
+        self::assertTrue($logger->hasInfoThatContains('Copying 3 tables to abs workspace.'));
+        self::assertTrue($logger->hasInfoThatContains('Processing workspace export.'));
     }
 }

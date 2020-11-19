@@ -12,6 +12,7 @@ use Keboola\StorageApi\Client;
 use Keboola\StorageApi\ClientException;
 use Keboola\StorageApi\Exception;
 use Keboola\StorageApi\Options\FileUploadOptions;
+use Keboola\StorageApiBranch\ClientWrapper;
 use Psr\Log\NullLogger;
 
 class DownloadTablesSynapseTest extends DownloadTablesTestAbstract
@@ -32,13 +33,13 @@ class DownloadTablesSynapseTest extends DownloadTablesTestAbstract
             throw new Exception('SYNAPSE_STORAGE_API_URL must be set for synapse tests');
         }
         try {
-            $this->clientWrapper->dropBucket("in.c-docker-test-synapse", ["force" => true]);
+            $this->clientWrapper->getBasicClient()->dropBucket("in.c-docker-test-synapse", ["force" => true]);
         } catch (ClientException $e) {
             if ($e->getCode() != 404) {
                 throw $e;
             }
         }
-        $this->clientWrapper->createBucket(
+        $this->clientWrapper->getBasicClient()->createBucket(
             "docker-test-synapse",
             Client::STAGE_IN,
             "Docker Testsuite",
@@ -49,22 +50,26 @@ class DownloadTablesSynapseTest extends DownloadTablesTestAbstract
         $csv = new CsvFile($this->temp->getTmpFolder() . DIRECTORY_SEPARATOR . "upload.csv");
         $csv->writeRow(["Id", "Name"]);
         $csv->writeRow(["test", "test"]);
-        $this->clientWrapper->createTableAsync("in.c-docker-test-synapse", "test", $csv);
+        $this->clientWrapper->getBasicClient()->createTableAsync("in.c-docker-test-synapse", "test", $csv);
     }
 
     protected function initClient()
     {
         $token = (string) getenv('SYNAPSE_STORAGE_API_TOKEN');
         $url = (string) getenv('SYNAPSE_STORAGE_API_URL');
-        $this->clientWrapper = new Client(["token" => $token, "url" => $url]);
-        $tokenInfo = $this->clientWrapper->verifyToken();
+        $this->clientWrapper = new ClientWrapper(
+            new Client(["token" => $token, "url" => $url]),
+            null,
+            null
+        );
+        $tokenInfo = $this->clientWrapper->getBasicClient()->verifyToken();
         print(sprintf(
             'Authorized as "%s (%s)" to project "%s (%s)" at "%s" stack.',
             $tokenInfo['description'],
             $tokenInfo['id'],
             $tokenInfo['owner']['name'],
             $tokenInfo['owner']['id'],
-            $this->clientWrapper->getApiUrl()
+            $this->clientWrapper->getBasicClient()->getApiUrl()
         ));
     }
 
@@ -134,15 +139,15 @@ class DownloadTablesSynapseTest extends DownloadTablesTestAbstract
         $fileUploadOptions
             ->setIsSliced(true)
             ->setFileName('emptyfile');
-        $uploadFileId = $this->clientWrapper->uploadSlicedFile([], $fileUploadOptions);
+        $uploadFileId = $this->clientWrapper->getBasicClient()->uploadSlicedFile([], $fileUploadOptions);
         $columns = ['Id', 'Name'];
         $headerCsvFile = new CsvFile($this->temp->getTmpFolder() . 'header.csv');
         $headerCsvFile->writeRow($columns);
-        $this->clientWrapper->createTableAsync('in.c-docker-test-synapse', 'empty', $headerCsvFile, []);
+        $this->clientWrapper->getBasicClient()->createTableAsync('in.c-docker-test-synapse', 'empty', $headerCsvFile, []);
 
         $options['columns'] = $columns;
         $options['dataFileId'] = $uploadFileId;
-        $this->clientWrapper->writeTableAsyncDirect('in.c-docker-test-synapse.empty', $options);
+        $this->clientWrapper->getBasicClient()->writeTableAsyncDirect('in.c-docker-test-synapse.empty', $options);
 
         $reader = new Reader($this->clientWrapper, new NullLogger(), new NullWorkspaceProvider());
         $configuration = new InputTableOptionsList([
