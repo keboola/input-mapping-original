@@ -3,7 +3,6 @@
 namespace Keboola\InputMapping\Reader\Helper;
 
 use Keboola\InputMapping\Exception\InputOperationException;
-use Keboola\InputMapping\Reader\Options\InputTableOptions;
 use Keboola\InputMapping\Reader\Options\InputTableOptionsList;
 use Keboola\InputMapping\Reader\State\InputTableStateList;
 use Keboola\StorageApiBranch\ClientWrapper;
@@ -18,13 +17,7 @@ class SourceRewriteHelper
     ) {
         if ($clientWrapper->hasBranch()) {
             foreach ($tablesDefinition->getTables() as $tableOptions) {
-                $newSource = self::getNewSource($tableOptions->getSource(), $clientWrapper->getBranch());
-                if ($clientWrapper->getBasicClient()->tableExists($newSource)) {
-                    $logger->info(
-                        sprintf('Using dev input "%s" instead of "%s".', $newSource, $tableOptions->getSource())
-                    );
-                    $tableOptions->setSource($newSource);
-                }
+                $tableOptions->setSource(self::rewriteSource($tableOptions->getSource(), $clientWrapper, $logger));
             }
         }
         return $tablesDefinition;
@@ -38,20 +31,14 @@ class SourceRewriteHelper
         if ($clientWrapper->hasBranch()) {
             $tableStates = $tableStates->jsonSerialize();
             foreach ($tableStates as &$tableState) {
-                $newSource = self::getNewSource($tableState['source'], $clientWrapper->getBranch());
-                if ($clientWrapper->getBasicClient()->tableExists($newSource)) {
-                    $logger->info(
-                        sprintf('Using dev input "%s" instead of "%s".', $newSource, $tableState['source'])
-                    );
-                    $tableState['source'] = $newSource;
-                }
+                $tableState['source'] = self::rewriteSource($tableState['source'], $clientWrapper, $logger);
             }
             return new InputTableStateList($tableStates);
         }
         return $tableStates;
     }
 
-    private static function getNewSource($source, $branch)
+    private static function getNewSource($source, $branchName)
     {
         $tableIdParts = explode('.', $source);
         if (count($tableIdParts) !== 3) {
@@ -61,24 +48,26 @@ class SourceRewriteHelper
         if (substr($bucketId, 0, 2) === 'c-') {
             $bucketId = substr($bucketId, 2);
         }
-        $bucketId = $branch . '-' . $bucketId;
+        $bucketId = $branchName . '-' . $bucketId;
         // this assumes that bucket id starts with c-
         // https://github.com/keboola/output-mapping/blob/f6451d2faa825913db2ce986952a9ad6db082e50/src/Writer/TableWriter.php#L498
         $tableIdParts[1] = 'c-' . $bucketId;
         return implode('.', $tableIdParts);
     }
 
-    private static function rewriteDestination(
-        InputTableOptions $tableOptions,
-        ClientWrapper $clientWrapper,
-        LoggerInterface $logger
-    ) {
-        if ($clientWrapper->hasBranch()) {
-            $newSource = self::getNewSource($tableOptions->getSource(), $clientWrapper->getBranch());
-            if ($clientWrapper->getBasicClient()->tableExists($newSource)) {
-                $logger->info(sprintf('Using dev input "%s" instead of "%s".', $newSource, $tableOptions->getSource()));
-                $tableOptions->setSource($newSource);
-            }
+    private static function rewriteSource($source, ClientWrapper $clientWrapper, LoggerInterface $logger)
+    {
+        $newSource = self::getNewSource(
+            $source,
+            $clientWrapper->getBasicClient()->webalizeDisplayName($clientWrapper->getBranchName())['displayName']
+        );
+        if ($clientWrapper->getBasicClient()->tableExists($newSource)) {
+            $logger->info(
+                sprintf('Using dev input "%s" instead of "%s".', $newSource, $source)
+            );
+            return $newSource;
+        } else {
+            return $source;
         }
     }
 }
