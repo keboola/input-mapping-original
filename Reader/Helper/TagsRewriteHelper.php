@@ -16,7 +16,7 @@ class TagsRewriteHelper
         if (!empty($fileConfiguration['tags']) && $clientWrapper->hasBranch()) {
             $prefix = $clientWrapper->getBasicClient()->webalizeDisplayName($clientWrapper->getBranchName())['displayName'];
 
-            $newTags = array_map(function($tag) use ($prefix) {
+            $newTags = array_map(function ($tag) use ($prefix) {
                 return $prefix . '-' . $tag;
             }, $fileConfiguration['tags']);
 
