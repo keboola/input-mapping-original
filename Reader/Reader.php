@@ -5,6 +5,7 @@ namespace Keboola\InputMapping\Reader;
 use Keboola\InputMapping\Exception\InputOperationException;
 use Keboola\InputMapping\Exception\InvalidInputException;
 use Keboola\InputMapping\Reader\Helper\SourceRewriteHelper;
+use Keboola\InputMapping\Reader\Helper\TagsRewriteHelper;
 use Keboola\InputMapping\Reader\Options\InputTableOptionsList;
 use Keboola\InputMapping\Reader\State\InputTableStateList;
 use Keboola\InputMapping\Reader\Strategy\StrategyFactory;
@@ -102,7 +103,7 @@ class Reader
         $fileOptions->setFederationToken(true);
 
         foreach ($configuration as $fileConfiguration) {
-            $files = $this->getFiles($fileConfiguration);
+            $files = $this->getFiles(TagsRewriteHelper::rewriteFileTags($fileConfiguration));
             foreach ($files as $file) {
                 $fileInfo = $storageClient->getFile($file['id'], $fileOptions);
                 $fileDestinationPath = sprintf('%s/%s_%s', $destination, $fileInfo['id'], $fileInfo["name"]);
