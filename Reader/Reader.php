@@ -103,11 +103,7 @@ class Reader
         $fileOptions->setFederationToken(true);
 
         foreach ($configuration as $fileConfiguration) {
-            $files = $this->getFiles(TagsRewriteHelper::rewriteFileTags(
-                $fileConfiguration,
-                $this->clientWrapper,
-                $this->logger
-            ));
+            $files = $this->getFiles($fileConfiguration);
             foreach ($files as $file) {
                 $fileInfo = $storageClient->getFile($file['id'], $fileOptions);
                 $fileDestinationPath = sprintf('%s/%s_%s', $destination, $fileInfo['id'], $fileInfo["name"]);
@@ -133,6 +129,12 @@ class Reader
      */
     public function getFiles($fileConfiguration)
     {
+        $fileConfiguration = TagsRewriteHelper::rewriteFileTags(
+            $fileConfiguration,
+            $this->clientWrapper,
+            $this->logger
+        );
+
         $options = new ListFilesOptions();
         if (empty($fileConfiguration['tags']) && empty($fileConfiguration['query'])) {
             throw new InvalidInputException("Invalid file mapping, both 'tags' and 'query' are empty.");
