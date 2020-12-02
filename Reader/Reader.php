@@ -103,7 +103,11 @@ class Reader
         $fileOptions->setFederationToken(true);
 
         foreach ($configuration as $fileConfiguration) {
-            $files = $this->getFiles(TagsRewriteHelper::rewriteFileTags($fileConfiguration));
+            $files = $this->getFiles(TagsRewriteHelper::rewriteFileTags(
+                $fileConfiguration,
+                $this->clientWrapper,
+                $this->logger
+            ));
             foreach ($files as $file) {
                 $fileInfo = $storageClient->getFile($file['id'], $fileOptions);
                 $fileDestinationPath = sprintf('%s/%s_%s', $destination, $fileInfo['id'], $fileInfo["name"]);
