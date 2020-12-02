@@ -8,6 +8,7 @@ use Keboola\InputMapping\Exception\InvalidInputException;
 use Keboola\InputMapping\Reader\NullWorkspaceProvider;
 use Keboola\InputMapping\Reader\Reader;
 use Keboola\StorageApi\Client;
+use Keboola\StorageApi\DevBranches;
 use Keboola\StorageApi\Options\FileUploadOptions;
 use Keboola\Temp\Temp;
 use Psr\Log\NullLogger;
@@ -91,6 +92,8 @@ class DownloadFilesTest extends DownloadFilesTestAbstract
 
     public function testReadFilesEsQueryFilterRunId()
     {
+        $this->clientWrapper->setBranchId('');
+
         $root = $this->tmpDir;
         file_put_contents($root . "/upload", "test");
         $reader = new Reader($this->clientWrapper, new NullLogger(), new NullWorkspaceProvider());
@@ -168,6 +171,8 @@ class DownloadFilesTest extends DownloadFilesTestAbstract
 
     public function testReadSlicedFileSnowflake()
     {
+        $this->clientWrapper->setBranchId('');
+
         // Create bucket
         $bucketId = 'in.c-docker-test-snowflake';
         if (!$this->clientWrapper->getBasicClient()->bucketExists($bucketId)) {
@@ -218,6 +223,8 @@ class DownloadFilesTest extends DownloadFilesTestAbstract
 
     public function testReadFilesEmptySlices()
     {
+        $this->clientWrapper->setBranchId('');
+
         $fileUploadOptions = new FileUploadOptions();
         $fileUploadOptions
             ->setIsSliced(true)
@@ -240,5 +247,35 @@ class DownloadFilesTest extends DownloadFilesTestAbstract
         self::assertEquals($uploadFileId, $manifest['id']);
         self::assertEquals('empty_file', $manifest['name']);
         self::assertDirectoryExists($this->temp->getTmpFolder() . '/download/' . $uploadFileId . '_empty_file');
+    }
+
+    public function testReadAndDownloadFilesWithEsQueryIsRestrictedForBranch()
+    {
+        $branches = new DevBranches($this->clientWrapper->getBasicClient());
+        foreach ($branches->listBranches() as $branch) {
+            if ($branch['name'] === 'my-branch') {
+                $branches->deleteBranch($branch['id']);
+            }
+        }
+
+        $this->clientWrapper->setBranchId($branches->createBranch('my-branch')['id']);
+
+        $reader = new Reader($this->clientWrapper, new NullLogger(), new NullWorkspaceProvider());
+
+        $fileConfiguration = ['query' => 'tags: download-files-test'];
+
+        try {
+            $reader->downloadFiles([$fileConfiguration], $this->tmpDir . '/dummy');
+            self::fail('Must throw exception');
+        } catch (InvalidInputException $e) {
+            self::assertSame("Invalid file mapping, 'query' attribute is restricted for dev/branch context.", $e->getMessage());
+        }
+
+        try {
+            $reader->getFiles($fileConfiguration);
+            self::fail('Must throw exception');
+        } catch (InvalidInputException $e) {
+            self::assertSame("Invalid file mapping, 'query' attribute is restricted for dev/branch context.", $e->getMessage());
+        }
     }
 }

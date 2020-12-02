@@ -135,6 +135,10 @@ class Reader
             $this->logger
         );
 
+        if (isset($fileConfiguration["query"]) && $this->clientWrapper->hasBranch()) {
+            throw new InvalidInputException("Invalid file mapping, 'query' attribute is restricted for dev/branch context.");
+        }
+
         $options = new ListFilesOptions();
         if (empty($fileConfiguration['tags']) && empty($fileConfiguration['query'])) {
             throw new InvalidInputException("Invalid file mapping, both 'tags' and 'query' are empty.");
