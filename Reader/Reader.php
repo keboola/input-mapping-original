@@ -4,6 +4,8 @@ namespace Keboola\InputMapping\Reader;
 
 use Keboola\InputMapping\Exception\InputOperationException;
 use Keboola\InputMapping\Exception\InvalidInputException;
+use Keboola\InputMapping\Reader\Helper\BuildQueryFromConfigurationHelper;
+use Keboola\InputMapping\Reader\Helper\FilterFilesHelper;
 use Keboola\InputMapping\Reader\Helper\SourceRewriteHelper;
 use Keboola\InputMapping\Reader\Helper\TagsRewriteHelper;
 use Keboola\InputMapping\Reader\Options\InputTableOptionsList;
@@ -191,8 +193,11 @@ class Reader
         }
 
         $options = new ListFilesOptions();
-        if (empty($fileConfiguration['tags']) && empty($fileConfiguration['query'])) {
-            throw new InvalidInputException("Invalid file mapping, both 'tags' and 'query' are empty.");
+        if (empty($fileConfiguration['tags']) && empty($fileConfiguration['query']) && empty($fileConfiguration['source']['tags'])) {
+            throw new InvalidInputException("Invalid file mapping, 'tags', 'query' and 'source.tags' are empty.");
+        }
+        if (!empty($fileConfiguration['tags']) && !empty($fileConfiguration['source']['tags'])) {
+            throw new InvalidInputException("Invalid file mapping, both 'tags' and 'source.tags' cannot be set.");
         }
         if (!empty($fileConfiguration['filter_by_run_id'])) {
             $options->setRunId(Reader::getParentRunId($storageClient->getRunId()));
@@ -200,8 +205,10 @@ class Reader
         if (isset($fileConfiguration["tags"]) && count($fileConfiguration["tags"])) {
             $options->setTags($fileConfiguration["tags"]);
         }
-        if (isset($fileConfiguration["query"])) {
-            $options->setQuery($fileConfiguration["query"]);
+        if (isset($fileConfiguration["query"]) || isset($fileConfiguration['source']['tags'])) {
+            $options->setQuery(
+                BuildQueryFromConfigurationHelper::buildQuery($fileConfiguration)
+            );
         }
         if (empty($fileConfiguration["limit"])) {
             $fileConfiguration["limit"] = 100;

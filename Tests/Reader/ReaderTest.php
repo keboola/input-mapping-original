@@ -135,6 +135,61 @@ class ReaderTest extends \PHPUnit_Framework_TestCase
         self::assertEmpty($files);
     }
 
+    public function testReadInvalidConfigurationNoQueryNoTagsNoSource()
+    {
+        $this->clientWrapper->setBranchId('');
+        $reader = new Reader($this->clientWrapper, new NullLogger(), new NullWorkspaceProvider());
+        $configurations = [[]];
+        try {
+            /** @noinspection PhpParamsInspection */
+            $reader->downloadFiles(
+                $configurations,
+                $this->temp->getTmpFolder() . DIRECTORY_SEPARATOR . 'download',
+                Reader::STAGING_LOCAL
+            );
+            self::fail('Invalid configuration should fail.');
+        } catch (InvalidInputException $e) {
+            self::assertContains("Invalid file mapping, 'tags', 'query' and 'source.tags' are empty.", $e->getMessage());
+        }
+        $finder = new Finder();
+        $files = $finder->files()->in($this->temp->getTmpFolder() . DIRECTORY_SEPARATOR . 'download');
+        self::assertEmpty($files);
+    }
+
+    public function testReadInvalidConfigurationBothTagsAndSourceTags()
+    {
+        $this->clientWrapper->setBranchId('');
+        $reader = new Reader($this->clientWrapper, new NullLogger(), new NullWorkspaceProvider());
+        $configurations = [
+            [
+                'source' => [
+                    'tags' => [
+                        [
+                            'name' => 'tag'
+                        ]
+                    ]
+                ],
+                'tags' => [
+                    'tag'
+                ]
+            ]
+        ];
+        try {
+            /** @noinspection PhpParamsInspection */
+            $reader->downloadFiles(
+                $configurations,
+                $this->temp->getTmpFolder() . DIRECTORY_SEPARATOR . 'download',
+                Reader::STAGING_LOCAL
+            );
+            self::fail('Invalid configuration should fail.');
+        } catch (InvalidInputException $e) {
+            self::assertContains("Invalid file mapping, both 'tags' and 'source.tags' cannot be set.", $e->getMessage());
+        }
+        $finder = new Finder();
+        $files = $finder->files()->in($this->temp->getTmpFolder() . DIRECTORY_SEPARATOR . 'download');
+        self::assertEmpty($files);
+    }
+
     public function testReadTablesDefaultBackend()
     {
         $logger = new TestLogger();
