@@ -5,6 +5,7 @@ namespace Keboola\InputMapping\Tests\Functional;
 use Keboola\InputMapping\Configuration\Table\Manifest\Adapter;
 use Keboola\InputMapping\Exception\InvalidInputException;
 use Keboola\InputMapping\Reader;
+use Keboola\InputMapping\Staging\StrategyFactory;
 use Keboola\InputMapping\State\InputTableStateList;
 use Keboola\InputMapping\Table\Options\InputTableOptionsList;
 use Keboola\StorageApi\ClientException;
@@ -15,7 +16,7 @@ class DownloadTablesWorkspaceSnowflakeTest extends DownloadTablesWorkspaceTestAb
     public function testTablesSnowflakeBackend()
     {
         $logger = new TestLogger();
-        $reader = new Reader($this->clientWrapper, $logger, $this->getWorkspaceProvider());
+        $reader = new Reader($this->getStagingFactory(null, 'json', $logger, [StrategyFactory::WORKSPACE_SNOWFLAKE, 'snowflake']));
         $configuration = new InputTableOptionsList([
             [
                 'source' => 'in.c-input-mapping-test.test1',
@@ -37,8 +38,8 @@ class DownloadTablesWorkspaceSnowflakeTest extends DownloadTablesWorkspaceTestAb
         $reader->downloadTables(
             $configuration,
             new InputTableStateList([]),
-            $this->temp->getTmpFolder() . DIRECTORY_SEPARATOR . 'download',
-            'workspace-snowflake'
+            'download',
+            StrategyFactory::WORKSPACE_SNOWFLAKE
         );
 
         $adapter = new Adapter();
@@ -79,13 +80,15 @@ class DownloadTablesWorkspaceSnowflakeTest extends DownloadTablesWorkspaceTestAb
             self::assertContains('Invalid columns: _timestamp:', $e->getMessage());
         }
 
+        self::assertTrue($logger->hasInfoThatContains('Using "workspace-snowflake" table input staging.'));
         self::assertTrue($logger->hasInfoThatContains('Table "in.c-input-mapping-test.test1" will be cloned.'));
         self::assertTrue($logger->hasInfoThatContains('Table "in.c-input-mapping-test.test2" will be copied.'));
         self::assertTrue($logger->hasInfoThatContains('Table "in.c-input-mapping-test.test3" will be cloned.'));
-        self::assertTrue($logger->hasInfoThatContains('Cloning 2 tables to snowflake workspace.'));
-        self::assertTrue($logger->hasInfoThatContains('Copying 1 tables to snowflake workspace.'));
+        self::assertTrue($logger->hasInfoThatContains('Cloning 2 tables to workspace.'));
+        self::assertTrue($logger->hasInfoThatContains('Copying 1 tables to workspace.'));
         self::assertTrue($logger->hasInfoThatContains('Processing 2 workspace exports.'));
         // test that the clone jobs are merged into a single one
+        sleep(2);
         $jobs = $this->clientWrapper->getBasicClient()->listJobs(['limit' => 10]);
         $params = null;
         foreach ($jobs as $job) {
@@ -101,8 +104,7 @@ class DownloadTablesWorkspaceSnowflakeTest extends DownloadTablesWorkspaceTestAb
 
     public function testTablesInvalidMapping()
     {
-        $logger = new TestLogger();
-        $reader = new Reader($this->clientWrapper, $logger, $this->getWorkspaceProvider());
+        $reader = new Reader($this->getStagingFactory(null, 'json', null, [StrategyFactory::WORKSPACE_SNOWFLAKE, 'snowflake']));
         $configuration = new InputTableOptionsList([
             [
                 'source' => 'in.c-input-mapping-test.test1',
@@ -120,15 +122,15 @@ class DownloadTablesWorkspaceSnowflakeTest extends DownloadTablesWorkspaceTestAb
         $reader->downloadTables(
             $configuration,
             new InputTableStateList([]),
-            $this->temp->getTmpFolder() . DIRECTORY_SEPARATOR . 'download',
-            'workspace-snowflake'
+            'download',
+            StrategyFactory::WORKSPACE_SNOWFLAKE
         );
     }
 
     public function testTablesSnowflakeDataTypes()
     {
         $logger = new TestLogger();
-        $reader = new Reader($this->clientWrapper, $logger, $this->getWorkspaceProvider());
+        $reader = new Reader($this->getStagingFactory(null, 'json', $logger, [StrategyFactory::WORKSPACE_SNOWFLAKE, 'snowflake']));
         $configuration = new InputTableOptionsList([
             [
                 'source' => 'in.c-input-mapping-test.test2',
@@ -149,8 +151,8 @@ class DownloadTablesWorkspaceSnowflakeTest extends DownloadTablesWorkspaceTestAb
         $reader->downloadTables(
             $configuration,
             new InputTableStateList([]),
-            $this->temp->getTmpFolder() . DIRECTORY_SEPARATOR . 'download',
-            'workspace-snowflake'
+            'download',
+            StrategyFactory::WORKSPACE_SNOWFLAKE
         );
 
         $adapter = new Adapter();
@@ -167,15 +169,15 @@ class DownloadTablesWorkspaceSnowflakeTest extends DownloadTablesWorkspaceTestAb
             ['dataWorkspaceId' => $this->workspaceId, 'dataTableName' => 'test2', 'name' => 'test2']
         );
 
+        self::assertTrue($logger->hasInfoThatContains('Using "workspace-snowflake" table input staging.'));
         self::assertTrue($logger->hasInfoThatContains('Table "in.c-input-mapping-test.test2" will be copied.'));
-        self::assertTrue($logger->hasInfoThatContains('Copying 1 tables to snowflake workspace.'));
+        self::assertTrue($logger->hasInfoThatContains('Copying 1 tables to workspace.'));
         self::assertTrue($logger->hasInfoThatContains('Processing 1 workspace exports.'));
     }
 
     public function testTablesSnowflakeDataTypesInvalid()
     {
-        $logger = new TestLogger();
-        $reader = new Reader($this->clientWrapper, $logger, $this->getWorkspaceProvider());
+        $reader = new Reader($this->getStagingFactory(null, 'json', null, [StrategyFactory::WORKSPACE_SNOWFLAKE, 'snowflake']));
         $configuration = new InputTableOptionsList([
             [
                 'source' => 'in.c-input-mapping-test.test2',
@@ -199,15 +201,15 @@ class DownloadTablesWorkspaceSnowflakeTest extends DownloadTablesWorkspaceTestAb
         $reader->downloadTables(
             $configuration,
             new InputTableStateList([]),
-            $this->temp->getTmpFolder() . DIRECTORY_SEPARATOR . 'download',
-            'workspace-snowflake'
+            'download',
+            StrategyFactory::WORKSPACE_SNOWFLAKE
         );
     }
 
     public function testTablesSnowflakeOverwrite()
     {
         $logger = new TestLogger();
-        $reader = new Reader($this->clientWrapper, $logger, $this->getWorkspaceProvider());
+        $reader = new Reader($this->getStagingFactory(null, 'json', $logger, [StrategyFactory::WORKSPACE_SNOWFLAKE, 'snowflake']));
         $configuration = new InputTableOptionsList([
             [
                 'source' => 'in.c-input-mapping-test.test2',
@@ -218,8 +220,8 @@ class DownloadTablesWorkspaceSnowflakeTest extends DownloadTablesWorkspaceTestAb
         $reader->downloadTables(
             $configuration,
             new InputTableStateList([]),
-            $this->temp->getTmpFolder() . DIRECTORY_SEPARATOR . 'download',
-            'workspace-snowflake'
+            'download',
+            StrategyFactory::WORKSPACE_SNOWFLAKE
         );
         $configuration = new InputTableOptionsList([
             [
@@ -234,8 +236,8 @@ class DownloadTablesWorkspaceSnowflakeTest extends DownloadTablesWorkspaceTestAb
         $reader->downloadTables(
             $configuration,
             new InputTableStateList([]),
-            $this->temp->getTmpFolder() . DIRECTORY_SEPARATOR . 'download',
-            'workspace-snowflake'
+            'download',
+            StrategyFactory::WORKSPACE_SNOWFLAKE
         );
         $adapter = new Adapter();
 
@@ -251,8 +253,9 @@ class DownloadTablesWorkspaceSnowflakeTest extends DownloadTablesWorkspaceTestAb
             ['dataWorkspaceId' => $this->workspaceId, 'dataTableName' => 'test2', 'name' => 'test2']
         );
 
+        self::assertTrue($logger->hasInfoThatContains('Using "workspace-snowflake" table input staging.'));
         self::assertTrue($logger->hasInfoThatContains('Table "in.c-input-mapping-test.test2" will be copied.'));
-        self::assertTrue($logger->hasInfoThatContains('Copying 1 tables to snowflake workspace.'));
+        self::assertTrue($logger->hasInfoThatContains('Copying 1 tables to workspace.'));
         self::assertTrue($logger->hasInfoThatContains('Processing 1 workspace exports.'));
 
         // check that we can overwrite while using clone
@@ -266,8 +269,8 @@ class DownloadTablesWorkspaceSnowflakeTest extends DownloadTablesWorkspaceTestAb
         $reader->downloadTables(
             $configuration,
             new InputTableStateList([]),
-            $this->temp->getTmpFolder() . DIRECTORY_SEPARATOR . 'download',
-            'workspace-snowflake'
+            'download',
+            StrategyFactory::WORKSPACE_SNOWFLAKE
         );
         $adapter = new Adapter();
 
@@ -288,8 +291,9 @@ class DownloadTablesWorkspaceSnowflakeTest extends DownloadTablesWorkspaceTestAb
         } catch (ClientException $e) {
             self::assertContains('Invalid columns: _timestamp:', $e->getMessage());
         }
+        self::assertTrue($logger->hasInfoThatContains('Using "workspace-snowflake" table input staging.'));
         self::assertTrue($logger->hasInfoThatContains('Table "in.c-input-mapping-test.test2" will be cloned.'));
-        self::assertTrue($logger->hasInfoThatContains('Cloning 1 tables to snowflake workspace.'));
+        self::assertTrue($logger->hasInfoThatContains('Cloning 1 tables to workspace.'));
         self::assertTrue($logger->hasInfoThatContains('Processing 1 workspace exports.'));
     }
 }

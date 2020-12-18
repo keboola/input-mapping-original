@@ -3,10 +3,10 @@
 namespace Keboola\InputMapping\Table\Strategy;
 
 use Keboola\InputMapping\Helper\ManifestWriter;
+use Keboola\InputMapping\Staging\ProviderInterface;
 use Keboola\InputMapping\State\InputTableStateList;
 use Keboola\InputMapping\Table\Options\InputTableOptions;
 use Keboola\InputMapping\Table\StrategyInterface;
-use Keboola\InputMapping\WorkspaceProviderInterface;
 use Keboola\StorageApiBranch\ClientWrapper;
 use Psr\Log\LoggerInterface;
 
@@ -18,8 +18,11 @@ abstract class AbstractStrategy implements StrategyInterface
     /** LoggerInterface */
     protected $logger;
 
-    /** @var WorkspaceProviderInterface */
-    protected $workspaceProvider;
+    /** @var ProviderInterface */
+    protected $dataStorage;
+
+    /** @var ProviderInterface */
+    protected $metadataStorage;
 
     /** @var InputTableStateList */
     protected $tablesState;
@@ -33,17 +36,29 @@ abstract class AbstractStrategy implements StrategyInterface
     public function __construct(
         ClientWrapper $storageClient,
         LoggerInterface $logger,
-        WorkspaceProviderInterface $workspaceProvider,
+        ProviderInterface $dataStorage,
+        ProviderInterface $metadataStorage,
         InputTableStateList $tablesState,
         $destination,
         $format = 'json'
     ) {
         $this->clientWrapper = $storageClient;
         $this->logger = $logger;
-        $this->workspaceProvider = $workspaceProvider;
+        $this->dataStorage = $dataStorage;
+        $this->metadataStorage = $metadataStorage;
         $this->tablesState = $tablesState;
         $this->destination = $destination;
         $this->manifestWriter = new ManifestWriter($this->clientWrapper->getBasicClient(), $format);
+    }
+
+    protected function ensurePathDelimiter($path)
+    {
+        return $this->ensureNoPathDelimiter($path) . '/';
+    }
+
+    protected function ensureNoPathDelimiter($path)
+    {
+        return rtrim($path, '\\/');
     }
 
     /**
@@ -80,9 +95,9 @@ abstract class AbstractStrategy implements StrategyInterface
     protected function getDestinationFilePath($destination, InputTableOptions $table)
     {
         if (!$table->getDestination()) {
-            return $destination . "/" . $table->getSource();
+            return $destination . '/' . $table->getSource();
         } else {
-            return $destination . "/" . $table->getDestination();
+            return $destination . '/' . $table->getDestination();
         }
     }
 }

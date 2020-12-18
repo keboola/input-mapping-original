@@ -3,11 +3,14 @@
 namespace Keboola\InputMapping\Tests\Functional;
 
 use Keboola\Csv\CsvFile;
-use Keboola\InputMapping\NullWorkspaceProvider;
-use Keboola\InputMapping\WorkspaceProviderInterface;
+use Keboola\InputMapping\Staging\ProviderInterface;
+use Keboola\InputMapping\Staging\Scope;
+use Keboola\InputMapping\Staging\NullProvider;
+use Keboola\InputMapping\Staging\StrategyFactory;
 use Keboola\StorageApi\Client;
 use Keboola\StorageApi\ClientException;
 use Keboola\StorageApi\Workspaces;
+use Psr\Log\NullLogger;
 
 class DownloadTablesWorkspaceTestAbstract extends DownloadTablesTestAbstract
 {
@@ -64,23 +67,49 @@ class DownloadTablesWorkspaceTestAbstract extends DownloadTablesTestAbstract
         parent::tearDown();
     }
 
-    protected function getWorkspaceProvider()
+    protected function getStagingFactory($clientWrapper = null, $format = 'json', $logger = null, $backend = [StrategyFactory::WORKSPACE_SNOWFLAKE, 'snowflake'])
     {
-        $mock = self::getMockBuilder(NullWorkspaceProvider::class)
+        $stagingFactory = new StrategyFactory(
+            $clientWrapper ? $clientWrapper : $this->clientWrapper,
+            $logger ? $logger : new NullLogger(),
+            $format
+        );
+        $mockWorkspace = self::getMockBuilder(NullProvider::class)
             ->setMethods(['getWorkspaceId'])
             ->getMock();
-        $mock->method('getWorkspaceId')->willReturnCallback(
-            function ($type) {
+        $mockWorkspace->method('getWorkspaceId')->willReturnCallback(
+            function () use ($backend) {
                 if (!$this->workspaceId) {
                     $workspaces = new Workspaces($this->clientWrapper->getBasicClient());
-                    $workspace = $workspaces->createWorkspace(['backend' => $type]);
+                    $workspace = $workspaces->createWorkspace(['backend' => $backend[1]]);
                     $this->workspaceId = $workspace['id'];
                     $this->workspaceCredentials = $workspace['connection'];
                 }
                 return $this->workspaceId;
             }
         );
-        /** @var WorkspaceProviderInterface $mock */
-        return $mock;
+        $mockLocal = self::getMockBuilder(NullProvider::class)
+            ->setMethods(['getPath'])
+            ->getMock();
+        $mockLocal->method('getPath')->willReturnCallback(
+            function () {
+                return $this->temp->getTmpFolder();
+            }
+        );
+        /** @var ProviderInterface $mockLocal */
+        /** @var ProviderInterface $mockWorkspace */
+        $stagingFactory->addProvider(
+            $mockLocal,
+            [
+                $backend[0] => new Scope([Scope::TABLE_METADATA]),
+            ]
+        );
+        $stagingFactory->addProvider(
+            $mockWorkspace,
+            [
+                $backend[0] => new Scope([Scope::TABLE_DATA])
+            ]
+        );
+        return $stagingFactory;
     }
 }

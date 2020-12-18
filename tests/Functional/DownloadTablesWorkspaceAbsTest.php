@@ -4,6 +4,7 @@ namespace Keboola\InputMapping\Tests\Functional;
 
 use Keboola\InputMapping\Configuration\Table\Manifest\Adapter;
 use Keboola\InputMapping\Reader;
+use Keboola\InputMapping\Staging\StrategyFactory;
 use Keboola\InputMapping\State\InputTableStateList;
 use Keboola\InputMapping\Table\Options\InputTableOptionsList;
 use Keboola\StorageApi\Client;
@@ -71,7 +72,7 @@ class DownloadTablesWorkspaceAbsTest extends DownloadTablesWorkspaceTestAbstract
             self::markTestSkipped('Synapse tests disabled');
         }
         $logger = new TestLogger();
-        $reader = new Reader($this->clientWrapper, $logger, $this->getWorkspaceProvider());
+        $reader = new Reader($this->getStagingFactory(null, 'json', $logger, [StrategyFactory::WORKSPACE_ABS, 'abs']));
         $configuration = new InputTableOptionsList([
             [
                 'source' => 'in.c-input-mapping-test.test1',
@@ -93,8 +94,8 @@ class DownloadTablesWorkspaceAbsTest extends DownloadTablesWorkspaceTestAbstract
         $reader->downloadTables(
             $configuration,
             new InputTableStateList([]),
-            $this->temp->getTmpFolder() . DIRECTORY_SEPARATOR . 'download',
-            'workspace-abs'
+            'download',
+            StrategyFactory::WORKSPACE_ABS
         );
 
         $adapter = new Adapter();
@@ -114,10 +115,11 @@ class DownloadTablesWorkspaceAbsTest extends DownloadTablesWorkspaceTestAbstract
 
         $this->assertBlobs($this->temp->getTmpFolder() . '/download/test3');
 
+        self::assertTrue($logger->hasInfoThatContains('Using "workspace-abs" table input staging.'));
         self::assertTrue($logger->hasInfoThatContains('Table "in.c-input-mapping-test.test1" will be copied.'));
         self::assertTrue($logger->hasInfoThatContains('Table "in.c-input-mapping-test.test2" will be copied.'));
         self::assertTrue($logger->hasInfoThatContains('Table "in.c-input-mapping-test.test3" will be copied.'));
-        self::assertTrue($logger->hasInfoThatContains('Copying 3 tables to abs workspace.'));
+        self::assertTrue($logger->hasInfoThatContains('Copying 3 tables to workspace.'));
         self::assertTrue($logger->hasInfoThatContains('Processing workspace export.'));
     }
 }
