@@ -9,6 +9,7 @@ use Keboola\InputMapping\Reader;
 use Keboola\InputMapping\Staging\StrategyFactory;
 use Keboola\InputMapping\State\InputTableStateList;
 use Keboola\InputMapping\Table\Options\InputTableOptionsList;
+use Keboola\InputMapping\Table\Options\ReaderOptions;
 use Keboola\InputMapping\Table\Strategy\Local;
 use Keboola\StorageApi\Client;
 use Keboola\StorageApi\ClientException;
@@ -63,7 +64,8 @@ class DownloadTablesDefaultTest extends DownloadTablesTestAbstract
             $configuration,
             new InputTableStateList([]),
             'download',
-            StrategyFactory::LOCAL
+            StrategyFactory::LOCAL,
+            new ReaderOptions(true)
         );
 
         $expectedCSVContent =  "\"Id\",\"Name\",\"foo\",\"bar\"\n\"id1\",\"name1\",\"foo1\",\"bar1\"\n" .
@@ -102,7 +104,8 @@ class DownloadTablesDefaultTest extends DownloadTablesTestAbstract
             $configuration,
             new InputTableStateList([]),
             'download',
-            StrategyFactory::LOCAL
+            StrategyFactory::LOCAL,
+            new ReaderOptions(true)
         );
         self::assertCSVEquals(
             "\"Id\",\"Name\",\"foo\",\"bar\"\n\"id1\",\"name1\",\"foo1\",\"bar1\"\n" .
@@ -126,7 +129,8 @@ class DownloadTablesDefaultTest extends DownloadTablesTestAbstract
             $configuration,
             new InputTableStateList([]),
             'download',
-            StrategyFactory::LOCAL
+            StrategyFactory::LOCAL,
+            new ReaderOptions(true)
         );
         self::assertCSVEquals(
             "\"Id\",\"Name\",\"foo\",\"bar\"\n\"id1\",\"name1\",\"foo1\",\"bar1\"\n" .
@@ -168,7 +172,8 @@ class DownloadTablesDefaultTest extends DownloadTablesTestAbstract
             $configuration,
             new InputTableStateList([]),
             'download',
-            StrategyFactory::LOCAL
+            StrategyFactory::LOCAL,
+            new ReaderOptions(true)
         );
 
         $adapter = new Adapter();
@@ -230,7 +235,8 @@ class DownloadTablesDefaultTest extends DownloadTablesTestAbstract
             $configuration,
             new InputTableStateList([]),
             'download',
-            StrategyFactory::LOCAL
+            StrategyFactory::LOCAL,
+            new ReaderOptions(true)
         );
 
         $adapter = new Adapter();
@@ -295,7 +301,8 @@ class DownloadTablesDefaultTest extends DownloadTablesTestAbstract
             $configuration,
             new InputTableStateList([]),
             'download',
-            StrategyFactory::LOCAL
+            StrategyFactory::LOCAL,
+            new ReaderOptions(true)
         );
 
         self::assertCSVEquals(
@@ -366,7 +373,8 @@ class DownloadTablesDefaultTest extends DownloadTablesTestAbstract
             $configuration,
             new InputTableStateList([]),
             'download',
-            StrategyFactory::LOCAL
+            StrategyFactory::LOCAL,
+            new ReaderOptions(true)
         );
 
         self::assertCSVEquals(
@@ -419,7 +427,58 @@ class DownloadTablesDefaultTest extends DownloadTablesTestAbstract
             $configuration,
             new InputTableStateList([]),
             'download',
-            StrategyFactory::LOCAL
+            StrategyFactory::LOCAL,
+            new ReaderOptions(true)
+        );
+    }
+
+    public function testReadTablesDevBucket()
+    {
+        $logger = new TestLogger();
+        $reader = new Reader($this->getStagingFactory(null, 'json', $logger));
+        $configuration = new InputTableOptionsList([
+            [
+                "source" => "in.c-input-mapping-test-default.test",
+                "destination" => "test.csv"
+            ],
+            [
+                "source" => "in.c-input-mapping-test-default.test2",
+                "destination" => "test2.csv"
+            ]
+        ]);
+        $metadata = new Metadata($this->clientWrapper->getBasicClient());
+        $metadata->postBucketMetadata(
+            'in.c-input-mapping-test-default',
+            'test',
+            [
+                [
+                    'key' => 'KBC.lastUpdatedBy.branch.id',
+                    'value' => '1234',
+                ],
+            ]
+        );
+
+        // without the check it passes
+        $reader->downloadTables(
+            $configuration,
+            new InputTableStateList([]),
+            'download',
+            StrategyFactory::LOCAL,
+            new ReaderOptions(false)
+        );
+
+        // with the check it fails
+        self::expectException(InvalidInputException::class);
+        self::expectExceptionMessage(
+            'The buckets "in.c-input-mapping-test-default" come from a development ' .
+            'branch and must not be used directly in input mapping.'
+        );
+        $reader->downloadTables(
+            $configuration,
+            new InputTableStateList([]),
+            'download',
+            StrategyFactory::LOCAL,
+            new ReaderOptions(true)
         );
     }
 }
