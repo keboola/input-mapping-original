@@ -2,7 +2,6 @@
 
 namespace Keboola\InputMapping\Helper;
 
-use Keboola\InputMapping\Configuration\File\Manifest\Adapter as FileAdapter;
 use Keboola\InputMapping\Configuration\Table\Manifest\Adapter as TableAdapter;
 use Keboola\InputMapping\Exception\InputOperationException;
 use Keboola\InputMapping\Exception\InvalidInputException;
@@ -10,26 +9,23 @@ use Keboola\StorageApi\Client;
 use Keboola\StorageApi\Metadata;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 
-class ManifestWriter
+class ManifestCreator
 {
     /** @var Client */
     protected $storageClient;
 
-    /** @var string */
-    protected $format = 'json';
-
-    public function __construct(Client $storageClient, $format)
+    public function __construct(Client $storageClient)
     {
         $this->storageClient = $storageClient;
-        $this->format = $format;
     }
 
     /**
      * @param array $tableInfo
      * @param string $destination
      * @param array $columns
+     * @param string $format
      */
-    public function writeTableManifest($tableInfo, $destination, $columns)
+    public function writeTableManifest($tableInfo, $destination, $columns, $format = 'json')
     {
         $manifest = [
             "id" => $tableInfo["id"],
@@ -57,7 +53,7 @@ class ManifestWriter
         foreach ($columns as $column) {
             $manifest['column_metadata'][$column] = $metadata->listColumnMetadata($tableInfo['id'] . '.' . $column);
         }
-        $adapter = new TableAdapter($this->format);
+        $adapter = new TableAdapter($format);
         try {
             $adapter->setConfig($manifest);
             $adapter->writeToFile($destination);
@@ -72,9 +68,9 @@ class ManifestWriter
     /**
      * @param $fileInfo
      * @param $destination
-     * @throws \Exception
+     * @return array manifest
      */
-    public function writeFileManifest($fileInfo, $destination)
+    public function createFileManifest($fileInfo)
     {
         $manifest = [
             "id" => $fileInfo["id"],
@@ -87,17 +83,6 @@ class ManifestWriter
             "max_age_days" => $fileInfo["maxAgeDays"],
             "size_bytes" => intval($fileInfo["sizeBytes"])
         ];
-
-        $adapter = new FileAdapter($this->format);
-        try {
-            $adapter->setConfig($manifest);
-            $adapter->writeToFile($destination);
-        } catch (InvalidConfigurationException $e) {
-            throw new InputOperationException(
-                "Failed to write manifest for file {$fileInfo['id']} - {$fileInfo['name']}.",
-                0,
-                $e
-            );
-        }
+        return $manifest;
     }
 }
