@@ -51,20 +51,22 @@ class ABSWorkspace extends AbstractFileStrategy implements StrategyInterface
         $manifest = $this->manifestCreator->createFileManifest($fileInfo);
         $adapter = new FileAdapter($this->format);
         $serializedManifest = $adapter->setConfig($manifest)->serialize();
-        $manifestDestination = $destinationPath . '.manifest';
+        $manifestDestination = $destinationPath . '/' . $fileInfo['id'] . '.manifest';
         $this->writeFile($serializedManifest, $manifestDestination);
     }
 
     public function downloadFiles($fileConfigurations, $destination)
     {
         parent::downloadFiles($fileConfigurations, $destination);
-        if (!empty($this->inputs)) {
+        if ($this->inputs) {
             $workspaces = new Workspaces($this->clientWrapper->getBasicClient());
             $workspaceId = $this->dataStorage->getWorkspaceId();
-            $workspaces->loadWorkspaceData($workspaceId, [
-                'input' => $this->inputs,
-                'preserve' => 1,
-            ]);
+            foreach ($this->inputs as $input) {
+                $workspaces->loadWorkspaceData($workspaceId, [
+                    'input' => [$input],
+                    'preserve' => 1,
+                ]);
+            }
             $this->logger->info('All files were fetched.');
         }
     }
@@ -84,5 +86,16 @@ class ABSWorkspace extends AbstractFileStrategy implements StrategyInterface
                 $e
             );
         }
+    }
+
+    protected function getFileDestinationPath($destinationPath, $fileId, $fileName)
+    {
+        /* Contrary to local strategy, in case of ABSWorkspace, the path is always a directory to which a
+            file is exported with the name being fileId. */
+        return sprintf(
+            '%s/%s',
+            $this->ensureNoPathDelimiter($destinationPath),
+            $fileName
+        );
     }
 }
