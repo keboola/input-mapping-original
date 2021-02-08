@@ -19,27 +19,36 @@ class ABSWorkspace extends AbstractFileStrategy implements StrategyInterface
     /** @var BlobRestProxy */
     private $blobClient;
 
-    /** @var string */
-    private $container;
+    /** @var array container, connectionString */
+    private $credentials;
 
     protected $inputs = [];
 
-    public function __construct(
-        ClientWrapper $clientWrapper,
-        LoggerInterface $logger,
-        ProviderInterface $dataStorage,
-        ProviderInterface $metadataStorage,
-        $format = 'json'
-    ) {
-        parent::__construct($clientWrapper, $logger, $dataStorage, $metadataStorage, $format);
-        $credentials = $this->dataStorage->getCredentials();
-        if (empty($credentials['connectionString']) || empty($credentials['container'])) {
-            throw new InputOperationException(
-                'Invalid credentials received: ' . implode(', ', array_keys($credentials))
-            );
+    /**
+     * @return array credentials
+     */
+    private function getCredentials()
+    {
+        if (!$this->credentials) {
+            $this->credentials = $this->dataStorage->getCredentials();
+            if (empty($this->credentials['connectionString']) || empty($this->credentials['container'])) {
+                throw new InputOperationException(
+                    'Invalid credentials received: ' . implode(', ', array_keys($this->credentials))
+                );
+            }
         }
-        $this->blobClient = BlobRestProxy::createBlobService($credentials['connectionString']);
-        $this->container = $credentials['container'];
+        return $this->credentials;
+    }
+
+    /**
+     * @return BlobRestProxy
+     */
+    private function getBlobClient()
+    {
+        if (!$this->blobClient) {
+            $this->blobClient = BlobRestProxy::createBlobService($this->getCredentials()['connectionString']);
+        }
+        return $this->blobClient;
     }
 
     public function downloadFile($fileInfo, $destinationPath)
@@ -74,14 +83,19 @@ class ABSWorkspace extends AbstractFileStrategy implements StrategyInterface
     private function writeFile($contents, $destination)
     {
         try {
-            $this->blobClient->createBlockBlob(
-                $this->container,
+            $blobClient = $this->getBlobClient();
+            $blobClient->createBlockBlob(
+                $this->getCredentials()['container'],
                 $destination,
                 $contents
             );
         } catch (ServiceException $e) {
             throw new InvalidInputException(
-                sprintf('Failed writing manifest to "%s" in container "%s".', $destination, $this->container),
+                sprintf(
+                    'Failed writing manifest to "%s" in container "%s".',
+                    $destination,
+                    $this->getCredentials()['container']
+                ),
                 $e->getCode(),
                 $e
             );
