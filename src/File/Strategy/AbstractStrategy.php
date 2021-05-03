@@ -3,11 +3,15 @@
 namespace Keboola\InputMapping\File\Strategy;
 
 use Exception;
+use Keboola\InputMapping\Exception\FileNotFoundException;
 use Keboola\InputMapping\Exception\InputOperationException;
 use Keboola\InputMapping\File\StrategyInterface;
+use Keboola\InputMapping\Helper\BuildQueryFromConfigurationHelper;
 use Keboola\InputMapping\Helper\ManifestCreator;
 use Keboola\InputMapping\Reader;
 use Keboola\InputMapping\Staging\ProviderInterface;
+use Keboola\InputMapping\State\InputFileStateList;
+use Keboola\InputMapping\Table\Options\InputTableOptions;
 use Keboola\StorageApi\Options\GetFileOptions;
 use Keboola\StorageApiBranch\ClientWrapper;
 use Psr\Log\LoggerInterface;
@@ -32,6 +36,9 @@ abstract class AbstractStrategy implements StrategyInterface
     /** @var ProviderInterface */
     protected $metadataStorage;
 
+    /** @var InputFileStateList */
+    protected $fileStateList;
+
     /** @var string */
     protected $format;
 
@@ -40,6 +47,7 @@ abstract class AbstractStrategy implements StrategyInterface
         LoggerInterface $logger,
         ProviderInterface $dataStorage,
         ProviderInterface $metadataStorage,
+        InputFileStateList $fileStateList,
         $format = 'json'
     ) {
         $this->clientWrapper = $storageClient;
@@ -47,6 +55,7 @@ abstract class AbstractStrategy implements StrategyInterface
         $this->manifestCreator = new ManifestCreator($this->clientWrapper->getBasicClient());
         $this->dataStorage = $dataStorage;
         $this->metadataStorage = $metadataStorage;
+        $this->fileStateList = $fileStateList;
         $this->format = $format;
     }
 
@@ -71,17 +80,28 @@ abstract class AbstractStrategy implements StrategyInterface
     /**
      * @param array $fileConfigurations
      * @param string $destination
+     * @return InputFileStateList
      */
     public function downloadFiles($fileConfigurations, $destination)
     {
         $fileOptions = new GetFileOptions();
         $fileOptions->setFederationToken(true);
-
+        $outputStateList = [];
         foreach ($fileConfigurations as $fileConfiguration) {
-            $files = Reader::getFiles($fileConfiguration, $this->clientWrapper, $this->logger);
+            $files = Reader::getFiles($fileConfiguration, $this->clientWrapper, $this->logger, $this->fileStateList);
+            $biggestFileId = 0;
+            $outputStateConfiguration = [];
             foreach ($files as $file) {
                 $fileInfo = $this->clientWrapper->getBasicClient()->getFile($file['id'], $fileOptions);
                 $fileDestinationPath = $this->getFileDestinationPath($destination, $fileInfo['id'], $fileInfo["name"]);
+
+                if ($fileInfo['id'] > $biggestFileId) {
+                    $outputStateConfiguration = [
+                        'tags' => $this->fileStateList->getFileConfigurationIdentifier($fileConfiguration),
+                        'lastImportId' => $fileInfo['id'],
+                    ];
+                    $biggestFileId = (int) $fileInfo['id'];
+                }
                 $this->logger->info(sprintf('Fetching file %s (%s).', $fileInfo['name'], $file['id']));
                 try {
                     $this->downloadFile($fileInfo, $fileDestinationPath);
@@ -94,7 +114,9 @@ abstract class AbstractStrategy implements StrategyInterface
                 }
                 $this->logger->info(sprintf('Fetched file %s (%s).', $fileInfo['name'], $file['id']));
             }
+            $outputStateList[] = $outputStateConfiguration;
         }
         $this->logger->info('All files were fetched.');
+        return new InputFileStateList($outputStateList);
     }
 }
