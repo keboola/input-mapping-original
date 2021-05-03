@@ -4,6 +4,7 @@ namespace Keboola\InputMapping\State;
 
 use JsonSerializable;
 use Keboola\InputMapping\Exception\FileNotFoundException;
+use Keboola\InputMapping\Helper\BuildQueryFromConfigurationHelper;
 
 class InputFileStateList implements JsonSerializable
 {
@@ -19,6 +20,13 @@ class InputFileStateList implements JsonSerializable
         }
     }
 
+    public function getFileConfigurationIdentifier(array $fileConfiguration)
+    {
+        return (isset($fileConfiguration['tags']))
+            ? BuildQueryFromConfigurationHelper::getSourceTagsFromTags($fileConfiguration['tags'])
+            : (isset($fileConfiguration['source']['tags']) ? $fileConfiguration['source']['tags'] : []);
+    }
+
     /**
      * @param $fileTags
      * @return InputFileState
@@ -27,6 +35,7 @@ class InputFileStateList implements JsonSerializable
     public function getFile($fileTags)
     {
         foreach ($this->files as $file) {
+            var_dump($file->getTags());
             if ($file->getTags() === $fileTags) {
                 return $file;
             }
