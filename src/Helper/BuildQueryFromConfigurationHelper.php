@@ -2,6 +2,8 @@
 
 namespace Keboola\InputMapping\Helper;
 
+use Keboola\InputMapping\Table\Options\InputTableOptions;
+
 class BuildQueryFromConfigurationHelper
 {
     public static function buildQuery($configuration)
@@ -14,14 +16,17 @@ class BuildQueryFromConfigurationHelper
             );
         }
         if (isset($configuration['source']['tags'])) {
-            return self::buildQueryForSourceTags($configuration['source']['tags']);
+            return self::buildQueryForSourceTags(
+                $configuration['source']['tags'],
+                isset($configuration['changed_since']) ? $configuration['changed_since'] : null
+            );
         }
         return $configuration['query'];
     }
 
-    public static function buildQueryForSourceTags(array $tags)
+    public static function buildQueryForSourceTags(array $tags, $changedSince = null)
     {
-        return implode(
+        $query = implode(
             ' AND ',
             array_map(function (array $tag) {
                 $queryPart = sprintf('tags:"%s"', $tag['name']);
@@ -30,6 +35,18 @@ class BuildQueryFromConfigurationHelper
                 }
                 return $queryPart;
             }, $tags)
+        );
+        if ($changedSince && $changedSince !== InputTableOptions::ADAPTIVE_INPUT_MAPPING_VALUE) {
+            $query = '(' . $query . ') AND ' . self::getChangedSinceQueryPortion($changedSince);
+        }
+        return $query;
+    }
+
+    public static function getChangedSinceQueryPortion($changedSince)
+    {
+        return sprintf(
+            'created:>"%s"',
+            date('Y-m-d H:i:s', strtotime($changedSince))
         );
     }
 
