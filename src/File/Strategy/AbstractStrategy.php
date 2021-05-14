@@ -103,7 +103,8 @@ abstract class AbstractStrategy implements StrategyInterface
             }
             foreach ($files as $file) {
                 $fileInfo = $this->clientWrapper->getBasicClient()->getFile($file['id'], $fileOptions);
-                $fileDestinationPath = $this->getFileDestinationPath($destination, $fileInfo['id'], $fileInfo["name"]);
+                $fileDestinationPath = $this->getFileDestinationPath($destination, $fileInfo['id'], $fileInfo['name']);
+                $overwrite = $fileConfiguration['overwrite'];
 
                 if ($fileInfo['id'] > $biggestFileId) {
                     $outputStateConfiguration = [
@@ -114,10 +115,15 @@ abstract class AbstractStrategy implements StrategyInterface
                 }
                 $this->logger->info(sprintf('Fetching file %s (%s).', $fileInfo['name'], $file['id']));
                 try {
-                    $this->downloadFile($fileInfo, $fileDestinationPath);
+                    $this->downloadFile($fileInfo, $fileDestinationPath, $overwrite);
                 } catch (Exception $e) {
                     throw new InputOperationException(
-                        sprintf('Failed to download file %s (%s).', $fileInfo['name'], $file['id']),
+                        sprintf(
+                            'Failed to download file %s (%s): %s',
+                            $fileInfo['name'],
+                            $file['id'],
+                            $e->getMessage()
+                        ),
                         0,
                         $e
                     );
