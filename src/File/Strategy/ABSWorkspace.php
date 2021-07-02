@@ -73,12 +73,11 @@ class ABSWorkspace extends AbstractFileStrategy
         if ($this->inputs) {
             $workspaces = new Workspaces($this->clientWrapper->getBranchClientIfAvailable());
             $workspaceId = $this->dataStorage->getWorkspaceId();
-            foreach ($this->inputs as $input) {
-                $workspaces->loadWorkspaceData($workspaceId, [
-                    'input' => [$input],
-                    'preserve' => 1,
-                ]);
-            }
+            $workspaces->loadWorkspaceData($workspaceId, [
+                'input' => [$this->inputs],
+                'preserve' => 1,
+            ]);
+            
             $this->logger->info('All files were fetched.');
         }
         return $inputFileStateList;
