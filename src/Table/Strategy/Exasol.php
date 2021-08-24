@@ -2,10 +2,10 @@
 
 namespace Keboola\InputMapping\Table\Strategy;
 
-class Redshift extends AbstractDatabaseStrategy
+class Exasol extends AbstractDatabaseStrategy
 {
     protected function getWorkspaceType()
     {
-        return 'redshift';
+        return 'exasol';
     }
 }
