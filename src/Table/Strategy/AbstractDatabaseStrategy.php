@@ -28,10 +28,11 @@ abstract class AbstractDatabaseStrategy extends AbstractStrategy
         ];
     }
 
-    public function handleExports($exports)
+    public function handleExports($exports, $preserve)
     {
         $cloneInputs = [];
         $copyInputs = [];
+        $workspaceTables = [];
 
         foreach ($exports as $export) {
             if ($export['type'] === 'clone') {
@@ -64,6 +65,7 @@ abstract class AbstractDatabaseStrategy extends AbstractStrategy
         }
 
         $workspaceJobs = [];
+        $hasBeenCleaned = false;
         if ($cloneInputs) {
             $this->logger->info(
                 sprintf('Cloning %s tables to workspace.', count($cloneInputs))
@@ -72,11 +74,14 @@ abstract class AbstractDatabaseStrategy extends AbstractStrategy
                 'workspaces/' . $this->dataStorage->getWorkspaceId() . '/load-clone',
                 [
                     'input' => $cloneInputs,
-                    'preserve' => 1,
+                    'preserve' => $preserve ? 1 : 0,
                 ],
                 false
             );
             $workspaceJobs[] = $job['id'];
+            if (!$preserve) {
+                $hasBeenCleaned = true;
+            }
         }
 
         if ($copyInputs) {
@@ -87,7 +92,7 @@ abstract class AbstractDatabaseStrategy extends AbstractStrategy
                 'workspaces/' . $this->dataStorage->getWorkspaceId() . '/load',
                 [
                     'input' => $copyInputs,
-                    'preserve' => 1,
+                    'preserve' => !$hasBeenCleaned && !$preserve ? 0 : 1,
                 ],
                 false
             );

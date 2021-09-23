@@ -100,7 +100,7 @@ class Reader
             $this->clientWrapper,
             $this->logger
         );
-        return $strategy->downloadTables($tablesDefinition->getTables());
+        return $strategy->downloadTables($tablesDefinition->getTables(), $readerOptions->preserveWorkspace());
     }
 
     /**
