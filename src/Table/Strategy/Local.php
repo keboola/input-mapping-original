@@ -19,7 +19,8 @@ class Local extends AbstractStrategy
             $exportLimit = $tokenInfo['owner']['limits'][self::EXPORT_SIZE_LIMIT_NAME]['value'];
         }
 
-        $file = $this->ensurePathDelimiter($this->dataStorage->getPath()) . $this->getDestinationFilePath($this->destination, $table);
+        $file = $this->ensurePathDelimiter($this->dataStorage->getPath()) .
+            $this->getDestinationFilePath($this->destination, $table);
         $tableInfo = $this->clientWrapper->getBasicClient()->getTable($table->getSource());
         if ($tableInfo['dataSizeBytes'] > $exportLimit) {
             throw new InvalidInputException(sprintf(
@@ -54,6 +55,6 @@ class Local extends AbstractStrategy
         }
         $tableExporter = new TableExporter($this->clientWrapper->getBasicClient());
         $this->logger->info("Processing " . count($exports) . " local table exports.");
-        $tableExporter->exportTables($exports);
+        return $tableExporter->exportTables($exports);
     }
 }

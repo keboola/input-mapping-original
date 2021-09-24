@@ -6,8 +6,12 @@ use Keboola\InputMapping\Helper\ManifestCreator;
 use Keboola\InputMapping\Staging\ProviderInterface;
 use Keboola\InputMapping\State\InputTableStateList;
 use Keboola\InputMapping\Table\Options\InputTableOptions;
+use Keboola\InputMapping\Table\Result;
+use Keboola\InputMapping\Table\Result\TableInfo;
+use Keboola\InputMapping\Table\Result\ResultTableList;
 use Keboola\InputMapping\Table\StrategyInterface;
 use Keboola\StorageApiBranch\ClientWrapper;
+use Keboola\Test\Common\TablesListingTest;
 use Psr\Log\LoggerInterface;
 
 abstract class AbstractStrategy implements StrategyInterface
@@ -66,13 +70,15 @@ abstract class AbstractStrategy implements StrategyInterface
     }
 
     /**
-     * @param InputTableOptions[]
-     * @return InputTableStateList
+     * @param InputTableOptions[] $tables
+     * @param bool $preserve
+     * @return Result
      */
     public function downloadTables($tables, $preserve)
     {
         $outputStateConfiguration = [];
         $exports = [];
+        $result = new Result();
         /** @var InputTableOptions $table */
         foreach ($tables as $table) {
             $tableInfo = $this->clientWrapper->getBasicClient()->getTable($table->getSource());
@@ -82,13 +88,14 @@ abstract class AbstractStrategy implements StrategyInterface
             ];
             $exports[] = $this->downloadTable($table);
             $this->logger->info("Fetched table " . $table->getSource() . ".");
+            $result->addTable(new TableInfo($tableInfo));
         }
 
-        $this->handleExports($exports, $preserve);
-
+        $result->setMetrics($this->handleExports($exports, $preserve));
+        $result->setInputTableStateList(new InputTableStateList($outputStateConfiguration));
         $this->logger->info("All tables were fetched.");
 
-        return new InputTableStateList($outputStateConfiguration);
+        return $result;
     }
 
     /**
