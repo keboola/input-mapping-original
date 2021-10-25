@@ -22,18 +22,18 @@ class InputTableOptions
         }
         $tableConfiguration = new \Keboola\InputMapping\Configuration\Table();
         $this->definition = $tableConfiguration->parse(['table' => $configuration]);
-        $colNamesFromTypes = [];
-        foreach ($this->definition['column_types'] as $column) {
-            $colNamesFromTypes[] = $column['source'];
+        $this->validateColumns();
+        if (empty($this->definition['column_types'])) {
+            foreach ($this->definition['columns'] as $column) {
+                $this->definition['column_types'][] = ['source' => $column];
+            }
         }
-        $this->validateColumns($colNamesFromTypes);
-        if (empty($this->definition['columns']) && !empty($colNamesFromTypes)) {
-            $this->definition['columns'] = $colNamesFromTypes;
-        }
+        $this->definition['columns'] = $this->getColumnNamesFromTypes();
     }
 
-    private function validateColumns(array $colNamesFromTypes)
+    private function validateColumns()
     {
+        $colNamesFromTypes = $this->getColumnNamesFromTypes();
         // if both columns and column_types are entered, verify that the columns listed do match
         if ($this->definition['columns'] && $this->definition['column_types']) {
             $diff = array_diff($this->definition['columns'], $colNamesFromTypes);
@@ -93,12 +93,9 @@ class InputTableOptions
     /**
      * @return array
      */
-    public function getColumnNames()
+    public function getColumnNamesFromTypes()
     {
-        if (isset($this->definition['columns'])) {
-            return $this->definition['columns'];
-        }
-        return [];
+        return array_column($this->definition['column_types'], 'source');
     }
 
     /**
@@ -107,8 +104,8 @@ class InputTableOptions
     public function getStorageApiExportOptions(InputTableStateList $states)
     {
         $exportOptions = [];
-        if (isset($this->definition['columns']) && count($this->definition['columns'])) {
-            $exportOptions['columns'] = $this->getColumnNames();
+        if (count($this->definition['column_types'])) {
+            $exportOptions['columns'] = $this->getColumnNamesFromTypes();
         }
         if (!empty($this->definition['days'])) {
             $exportOptions['changedSince'] = "-{$this->definition["days"]} days";
@@ -145,8 +142,10 @@ class InputTableOptions
             foreach ($this->definition['column_types'] as $column_type) {
                 $item = [
                     'source' => $column_type['source'],
-                    'type' => $column_type['type'],
                 ];
+                if (isset($column_type['type'])) {
+                    $item['type'] = $column_type['type'];
+                }
                 if (isset($column_type['destination'])) {
                     $item['destination'] = $column_type['destination'];
                 }
@@ -175,8 +174,6 @@ class InputTableOptions
         $exportOptions = [];
         if ($this->definition['column_types']) {
             $exportOptions['columns'] = $this->getColumnTypes();
-        } elseif ($this->definition['columns']) {
-            $exportOptions['columns'] = $this->getColumnNames();
         }
         if (!empty($this->definition['days'])) {
             throw new InvalidInputException(

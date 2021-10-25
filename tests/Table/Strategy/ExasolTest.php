@@ -45,7 +45,10 @@ class ExasolTest extends AbstractStrategyTest
                         ]
                     ),
                     [
-                        'columns' => ['foo', 'bar'],
+                        'columns' => [
+                            ['source' => 'foo'],
+                            ['source' => 'bar']
+                        ],
                         'overwrite' => false,
                     ],
                 ],
