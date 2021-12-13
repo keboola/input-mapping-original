@@ -115,6 +115,19 @@ class BuildQueryFromConfigurationHelperTest extends TestCase
         );
     }
 
+    public function testBuildQuerySourceTagsAndQueryOnEmptySourceTags()
+    {
+        self::assertEquals(
+            'tag:123',
+            BuildQueryFromConfigurationHelper::buildQuery([
+                'query' => 'tag:123',
+                'source' => [
+                    'tags' => [],
+                ],
+            ])
+        );
+    }
+
     public function testChangedSinceQueryPortion()
     {
         self::assertEquals(
