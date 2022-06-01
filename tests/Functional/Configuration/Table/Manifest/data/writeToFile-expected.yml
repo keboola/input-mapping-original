@@ -1,0 +1,6 @@
+id: in.c-bucket.test
+primary_key: {  }
+distribution_key: {  }
+columns: {  }
+metadata: {  }
+column_metadata: {  }
