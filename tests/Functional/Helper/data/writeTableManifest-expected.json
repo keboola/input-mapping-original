@@ -1,0 +1,47 @@
+{
+    "id": "in.c-docker-test.test",
+    "uri": "https:\/\/connection.keboola.com\/v2\/storage\/tables\/in.c-docker-test.test",
+    "name": "test",
+    "primary_key": [],
+    "distribution_key": [],
+    "created": "2022-06-03T01:31:43+0200",
+    "last_change_date": "2022-06-03T02:31:43+0200",
+    "last_import_date": "2022-06-03T03:31:43+0200",
+    "columns": [
+        "Id",
+        "Name",
+        "foo",
+        "bar"
+    ],
+    "metadata": [
+        {
+            "id": "123",
+            "key": "description",
+            "value": "Test",
+            "provider": "input-mapping",
+            "timestamp": "2022-06-03T04:31:43+0200"
+        }
+    ],
+    "column_metadata": {
+        "Id": [
+            {
+                "id": "456",
+                "key": "datatype",
+                "value": "NUMBER",
+                "provider": "input-mapping",
+                "timestamp": "2022-06-03T05:31:43+0200"
+            }
+        ],
+        "Name": [
+            {
+                "id": "789",
+                "key": "datatype",
+                "value": "TEXT",
+                "provider": "input-mapping",
+                "timestamp": "2022-06-03T06:31:43+0200"
+            }
+        ],
+        "foo": [],
+        "bar": []
+    }
+}
