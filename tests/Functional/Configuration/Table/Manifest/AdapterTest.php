@@ -33,7 +33,7 @@ class AdapterTest extends AbstractManifestAdapterTest
         $adapter->setConfig(['id' => 'in.c-bucket.test']);
         $adapter->writeToFile($filePathname);
 
-        if ($adapter->getFormat() === BaseAdapter::FORMAT_JSON) {
+        if ($adapter->getFormat() === 'json') {
             self::assertStringEqualsFile($expectedFilePathname, file_get_contents($filePathname) . PHP_EOL);
             self::assertStringEqualsFile(
                 $expectedFilePathname,

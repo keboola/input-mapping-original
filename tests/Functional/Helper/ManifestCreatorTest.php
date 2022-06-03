@@ -140,7 +140,7 @@ class ManifestCreatorTest extends TestCase
         $manifestCreator = new ManifestCreator($this->clientWrapper->getBasicClient());
         $manifestCreator->writeTableManifest($tableInfo, $filePathname, $columns, $format);
 
-        if ($format === BaseAdapter::FORMAT_JSON) {
+        if ($format === 'json') {
             self::assertStringEqualsFile($expectedFilePathname, file_get_contents($filePathname) . PHP_EOL);
         } else {
             self::assertFileEquals($expectedFilePathname, $filePathname);
