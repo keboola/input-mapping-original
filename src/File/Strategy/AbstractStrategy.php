@@ -3,6 +3,7 @@
 namespace Keboola\InputMapping\File\Strategy;
 
 use Exception;
+use Keboola\InputMapping\Configuration\File\Manifest\Adapter;
 use Keboola\InputMapping\Exception\FileNotFoundException;
 use Keboola\InputMapping\Exception\InputOperationException;
 use Keboola\InputMapping\File\StrategyInterface;
@@ -48,11 +49,11 @@ abstract class AbstractStrategy implements StrategyInterface
         ProviderInterface $dataStorage,
         ProviderInterface $metadataStorage,
         InputFileStateList $fileStateList,
-        $format = 'json'
+        $format = Adapter::FORMAT_JSON
     ) {
         $this->clientWrapper = $storageClient;
         $this->logger = $logger;
-        $this->manifestCreator = new ManifestCreator($this->clientWrapper->getBasicClient());
+        $this->manifestCreator = new ManifestCreator();
         $this->dataStorage = $dataStorage;
         $this->metadataStorage = $metadataStorage;
         $this->fileStateList = $fileStateList;
